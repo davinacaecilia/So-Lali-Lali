@@ -1,7 +1,5 @@
 # SO LALI-LALI 
 
-## About 
-
 SO LALI-LALI (Supply Organizer, Laporan & Inventory) adalah aplikasi manajemen stok untuk usaha FnB yang membantu pemilik usaha mencatat, memantau, dan mengelola persediaan bahan baku serta supply agar stok tetap terkontrol dan tidak mudah kehabisan atau menumpuk.
 
 ## Planned Features
