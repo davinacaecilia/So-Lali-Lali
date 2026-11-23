@@ -11,7 +11,7 @@ class DashboardHeader extends StatelessWidget {
         color: AppColors.headerBg,
         boxShadow: [
           BoxShadow(
-            color: Color(0x22000000),
+            color: AppColors.shadow,
             blurRadius: 6,
             offset: Offset(0, 2),
           ),
@@ -23,12 +23,12 @@ class DashboardHeader extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(26, 14, 18, 14),
           child: Row(
             children: [
-              // Logo (ganti dengan Image.asset('assets/logo.png') milikmu)
+              // Logo dari assets/images/logo.png
               SizedBox(
                 width: 84,
                 height: 56,
                 child: Image.asset(
-                  'assets/logo.png',
+                  'assets/images/logo.png',
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => Container(
                     decoration: BoxDecoration(
@@ -58,7 +58,7 @@ class DashboardHeader extends StatelessWidget {
                       'Dashboard Owner',
                       style: TextStyle(
                         fontSize: 16,
-                        color: Color(0xFFA9713A),
+                        color: AppColors.headerText,
                         height: 1.2,
                       ),
                     ),
@@ -72,13 +72,13 @@ class DashboardHeader extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.background,
-                  border: Border.all(color: const Color(0xFFD9CDBA)),
+                  border: Border.all(color: AppColors.neutralBorder),
                 ),
                 child: const Icon(Icons.notifications_none_rounded,
                     color: AppColors.brownDark, size: 24),
               ),
               const SizedBox(width: 8),
-              // Foto profil (ganti dengan Image.asset / NetworkImage milikmu)
+              // Foto profil
               ClipOval(
                 child: SizedBox(
                   width: 46,
@@ -87,7 +87,7 @@ class DashboardHeader extends StatelessWidget {
                     'assets/avatar.png',
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
-                      color: const Color(0xFFD9CDBA),
+                      color: AppColors.neutralBorder,
                       child: const Icon(Icons.person,
                           color: Colors.white, size: 28),
                     ),

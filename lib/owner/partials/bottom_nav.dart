@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../daftar_bahan.dart';
+import '../item/item_page.dart';
+import '../supplier/daftar_supplier.dart'; 
 import '../dashboard.dart';
 import 'colors.dart';
 
@@ -34,8 +35,11 @@ class OwnerBottomNav extends StatelessWidget {
       case 1:
         page = const ItemPage();
         break;
-      // TODO: case 2 Supplier, case 3 Laporan, case 4 Riwayat
-      default:
+      case 2:
+        page = const DaftarSupplierPage();  
+        break;
+      // TODO: case 3 Laporan, case 4 Riwayat
+       default:
         return;
     }
 
@@ -64,7 +68,7 @@ class OwnerBottomNav extends StatelessWidget {
       padding: const EdgeInsets.only(top: 10, bottom: 12),
       decoration: const BoxDecoration(
         color: AppColors.headerBg,
-        border: Border(top: BorderSide(color: Color(0xFFE6DCCB))),
+        border: Border(top: BorderSide(color: AppColors.navDivider)),
       ),
       child: SafeArea(
         top: false,

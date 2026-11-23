@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
-import 'partials/bottom_nav.dart';
-import 'partials/colors.dart';
-import 'partials/filter_bahan.dart';
-import 'partials/header.dart';
+import '../partials/colors.dart';
+import 'filter_bahan.dart';
+import 'informasi_bahan.dart';
+import 'tambah_bahan.dart';
 
 // =====================================================
 // MODEL + DATA DUMMY
-// (nanti diganti data dari backend/API)
 // =====================================================
 class BahanItem {
   final String name;
@@ -95,66 +94,55 @@ final List<BahanItem> dummyBahan = [
   ),
 ];
 
-// =====================================================
-// HALAMAN
-// =====================================================
-
 /// Fungsi yang membuka sheet filter dan mengembalikan pilihan user
 /// (null jika ditutup tanpa menerapkan). Setiap "versi" halaman cukup
 /// memberi fungsi yang berbeda; tampilan halamannya tetap sama.
-typedef BahanFilterOpener = Future<FilterBahan?> Function(
-  BuildContext context, {
-  required FilterBahan current,
-  required Map<String, int> counts,
-});
+typedef BahanFilterOpener =
+    Future<FilterBahan?> Function(
+      BuildContext context, {
+      required FilterBahan current,
+      required Map<String, int> counts,
+    });
 
-/// Halaman daftar bahan (tab Bahan / Menu).
-/// Satu halaman untuk semua versi; yang berbeda hanya [openFilter].
-/// Otomatis menampilkan empty state jika data kosong,
-/// dan daftar bahan jika data ada.
-class ItemPage extends StatefulWidget {
+// =====================================================
+// KONTEN TAB "BAHAN"
+// (dipakai di dalam ItemPage; tidak punya header / bottom nav sendiri)
+// =====================================================
+class DaftarBahan extends StatefulWidget {
   /// Sheet filter yang dipakai. Bawaan: filter owner.
   final BahanFilterOpener openFilter;
 
-  const ItemPage({
-    super.key,
-    this.openFilter = showFilterBahanSheet,
-  });
+  const DaftarBahan({super.key, this.openFilter = showFilterBahanSheet});
 
   @override
-  State<ItemPage> createState() => _ItemPageState();
+  State<DaftarBahan> createState() => _DaftarBahanState();
 }
 
-class _ItemPageState extends State<ItemPage> {
+class _DaftarBahanState extends State<DaftarBahan> {
   // Warna khusus halaman ini (diambil dari desain)
-  static const _orange = Color(0xFFE59E2C);
-  static const _peach = Color(0xFFFFEAD8);
-  static const _field = Color(0xFFFFF7F0);
-  static const _fieldBorder = Color(0xFFF7E9DC);
-  static const _hint = Color(0xFFC9B8A8);
-  static const _iconMuted = Color(0xFF9C8B7A);
-  static const _subtitle = Color(0xFF6E6358);
-  static const _cube = Color(0xFF5A4636);
+  static const _orange = AppColors.orangeAccent;
+  static const _peach = AppColors.peach;
+  static const _field = AppColors.fieldBg;
+  static const _fieldBorder = AppColors.fieldBorder;
+  static const _hint = AppColors.fieldHint;
+  static const _iconMuted = AppColors.mutedIcon;
+  static const _subtitle = AppColors.subtitle;
+  static const _cube = AppColors.cube;
 
   // ------------------------------------------------------------
   // DATA. Untuk mencoba tampilan KOSONG, ganti dummyBahan dengan []
   // ------------------------------------------------------------
   final List<BahanItem> _bahan = dummyBahan;
-  final List<BahanItem> _menu = const []; // tab Menu belum ada desainnya
 
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
-  int _tab = 0; // 0 = Bahan, 1 = Menu
-  int _navIndex = 1; // Item
   FilterBahan _filter = const FilterBahan();
-
-  List<BahanItem> get _source => _tab == 0 ? _bahan : _menu;
 
   List<BahanItem> get _visible {
     final q = _query.trim().toLowerCase();
     final match = kKategoriFilter[_filter.category];
 
-    final list = _source.where((e) {
+    final list = _bahan.where((e) {
       if (q.isNotEmpty && !e.name.toLowerCase().contains(q)) return false;
       if (_filter.category != FilterBahan.semuaKategori &&
           e.category != match) {
@@ -167,7 +155,8 @@ class _ItemPageState extends State<ItemPage> {
     switch (_filter.sort) {
       case BahanSort.nama:
         list.sort(
-            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
         break;
       case BahanSort.stokTersedikit:
         list.sort((a, b) => a.stock.compareTo(b.stock));
@@ -186,9 +175,9 @@ class _ItemPageState extends State<ItemPage> {
 
   /// Jumlah item per kategori untuk ditampilkan di sheet filter.
   Map<String, int> _categoryCounts() {
-    final counts = <String, int>{FilterBahan.semuaKategori: _source.length};
+    final counts = <String, int>{FilterBahan.semuaKategori: _bahan.length};
     kKategoriFilter.forEach((label, match) {
-      counts[label] = _source.where((e) => e.category == match).length;
+      counts[label] = _bahan.where((e) => e.category == match).length;
     });
     return counts;
   }
@@ -202,79 +191,53 @@ class _ItemPageState extends State<ItemPage> {
     if (result != null) setState(() => _filter = result);
   }
 
+  void _goTambah() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TambahBahanBaruPage()),
+    );
+  }
+
   @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  void _changeTab(int index) {
-    setState(() {
-      _tab = index;
-      _query = '';
-      _searchCtrl.clear();
-      _filter = const FilterBahan();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final items = _visible;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          const DashboardHeader(),
-          Expanded(
-            child: Stack(
-              children: [
-                SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(25, 23, 25, 100),
-                  child: Column(
-                    children: [
-                      _buildTabSwitch(),
-                      const SizedBox(height: 12),
-                      _buildSearchRow(),
-                      const SizedBox(height: 24),
-                      _buildBody(items),
-                    ],
-                  ),
-                ),
-                // Tombol tambah (hanya muncul jika ada data)
-                if (_source.isNotEmpty)
-                  Positioned(
-                    right: 24,
-                    bottom: 20,
-                    child: _buildAddFab(),
-                  ),
-              ],
-            ),
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(25, 0, 25, 100),
+          child: Column(
+            children: [
+              _buildSearchRow(),
+              const SizedBox(height: 24),
+              _buildBody(items),
+            ],
           ),
-          OwnerBottomNav(
-            currentIndex: _navIndex,
-            onTap: (i) => setState(() => _navIndex = i),
-          ),
-        ],
-      ),
+        ),
+        // Tombol tambah (hanya muncul jika ada data)
+        if (_bahan.isNotEmpty)
+          Positioned(right: 24, bottom: 20, child: _buildAddFab()),
+      ],
     );
   }
 
   // ---------- Pilih tampilan: kosong / tidak ketemu / daftar ----------
   Widget _buildBody(List<BahanItem> items) {
-    final label = _tab == 0 ? 'bahan' : 'menu';
-
     // 1) Data memang belum ada
-    if (_source.isEmpty) {
+    if (_bahan.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(top: 32),
         child: _buildEmptyState(
           icon: Icons.inventory_2_outlined,
-          title: _tab == 0 ? 'Belum ada bahan baku' : 'Belum ada menu',
-          subtitle: _tab == 0
-              ? 'Tambahkan bahan pertama Anda untuk mulai memantau stok.'
-              : 'Tambahkan menu pertama Anda untuk mulai berjualan.',
-          buttonLabel: _tab == 0 ? 'Tambahkan Bahan' : 'Tambahkan Menu',
+          title: 'Belum ada bahan baku',
+          subtitle: 'Tambahkan bahan pertama Anda untuk mulai memantau stok.',
+          buttonLabel: 'Tambahkan Bahan',
         ),
       );
     }
@@ -286,66 +249,21 @@ class _ItemPageState extends State<ItemPage> {
         child: _buildEmptyState(
           icon: Icons.search_off_rounded,
           title: 'Tidak ditemukan',
-          subtitle: 'Tidak ada $label yang sesuai dengan pencarian atau filter.',
+          subtitle: 'Tidak ada bahan yang sesuai dengan pencarian atau filter.',
         ),
       );
     }
 
     // 3) Tampilkan daftar
-    return Column(
-      children: items.map((e) => _BahanTile(item: e)).toList(),
-    );
-  }
-
-  // ---------- Toggle Bahan / Menu ----------
-  Widget _buildTabSwitch() {
-    return Container(
-      height: 42,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: _peach,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          _tabItem('Bahan', 0),
-          _tabItem('Menu', 1),
-        ],
-      ),
-    );
-  }
-
-  Widget _tabItem(String label, int index) {
-    final selected = _tab == index;
-    return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => _changeTab(index),
-        child: Container(
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? _orange : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-              color: AppColors.textDark,
-            ),
-          ),
-        ),
-      ),
-    );
+    return Column(children: items.map((e) => _BahanTile(item: e)).toList());
   }
 
   // ---------- Search + filter ----------
   Widget _buildSearchRow() {
     OutlineInputBorder border() => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _fieldBorder),
-        );
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: _fieldBorder),
+    );
 
     return Row(
       children: [
@@ -357,10 +275,13 @@ class _ItemPageState extends State<ItemPage> {
               onChanged: (v) => setState(() => _query = v),
               style: const TextStyle(fontSize: 14, color: AppColors.textDark),
               decoration: InputDecoration(
-                hintText: _tab == 0 ? 'Cari nama bahan' : 'Cari nama menu',
+                hintText: 'Cari nama bahan',
                 hintStyle: const TextStyle(fontSize: 14, color: _hint),
-                prefixIcon:
-                    const Icon(Icons.search, size: 20, color: _iconMuted),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  size: 20,
+                  color: _iconMuted,
+                ),
                 filled: true,
                 fillColor: _field,
                 contentPadding: EdgeInsets.zero,
@@ -399,13 +320,11 @@ class _ItemPageState extends State<ItemPage> {
     return Material(
       color: _orange,
       elevation: 4,
-      shadowColor: const Color(0x55000000),
+      shadowColor: AppColors.strongShadow,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: () {
-          // TODO: navigasi ke form tambah bahan
-        },
+        onTap: _goTambah,
         child: const SizedBox(
           width: 54,
           height: 54,
@@ -449,7 +368,10 @@ class _ItemPageState extends State<ItemPage> {
             subtitle,
             textAlign: TextAlign.center,
             style: const TextStyle(
-                fontSize: 13.5, height: 1.45, color: _subtitle),
+              fontSize: 13.5,
+              height: 1.45,
+              color: _subtitle,
+            ),
           ),
         ),
         if (buttonLabel != null) ...[
@@ -458,9 +380,7 @@ class _ItemPageState extends State<ItemPage> {
             width: 220,
             height: 48,
             child: ElevatedButton.icon(
-              onPressed: () {
-                // TODO: navigasi ke form tambah
-              },
+              onPressed: _goTambah,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _orange,
                 foregroundColor: Colors.white,
@@ -472,8 +392,10 @@ class _ItemPageState extends State<ItemPage> {
               icon: const Icon(Icons.add, size: 20),
               label: Text(
                 buttonLabel,
-                style:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),
@@ -490,9 +412,9 @@ class _BahanTile extends StatelessWidget {
   final BahanItem item;
   const _BahanTile({required this.item});
 
-  static const _peach = Color(0xFFFFEAD8);
-  static const _subtitle = Color(0xFF8A7F74);
-  static const _warnText = Color(0xFF8A5A12);
+  static const _peach = AppColors.peach;
+  static const _subtitle = AppColors.lightSubtitle;
+  static const _warnText = AppColors.warningStatusText;
 
   @override
   Widget build(BuildContext context) {
@@ -500,87 +422,106 @@ class _BahanTile extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 25),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Ikon bahan
-          Container(
-            width: 63,
-            height: 63,
-            decoration: BoxDecoration(
-              color: _peach,
-              borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => InformasiBahanPage(
+                name: item.name,
+                category: item.category,
+                status: item.status,
+                icon: item.icon,
+                unit: item.quantity.split(' ').skip(1).join(' '),
+              ),
             ),
-            child: Icon(item.icon, size: 28, color: AppColors.brown),
-          ),
-          const SizedBox(width: 15),
-          // Nama + kategori
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          );
+        },
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Ikon bahan
+            Container(
+              width: 63,
+              height: 63,
+              decoration: BoxDecoration(
+                color: _peach,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(item.icon, size: 28, color: AppColors.brown),
+            ),
+            const SizedBox(width: 15),
+            // Nama + kategori
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
+                      height: 1.25,
+                    ),
+                  ),
+                  Text(
+                    item.category,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: _subtitle,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Badge status + jumlah
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  item.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
-                    height: 1.25,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: style.bg,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(style.icon, size: 13, color: style.fg),
+                      const SizedBox(width: 4),
+                      Text(
+                        style.label,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: style.fg,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                const SizedBox(height: 6),
                 Text(
-                  item.category,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: _subtitle,
-                    height: 1.3,
+                  item.quantity,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: style.qtyColor,
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          // Badge status + jumlah
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: style.bg,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(style.icon, size: 13, color: style.fg),
-                    const SizedBox(width: 4),
-                    Text(
-                      style.label,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: style.fg,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                item.quantity,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: style.qtyColor,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -591,7 +532,7 @@ class _BahanTile extends StatelessWidget {
         return const _StatusStyle(
           label: 'Aman',
           icon: Icons.check_circle_outline,
-          bg: Color(0xFFE3F3E6),
+          bg: AppColors.safeBg,
           fg: AppColors.green,
           qtyColor: AppColors.textDark,
         );
@@ -599,7 +540,7 @@ class _BahanTile extends StatelessWidget {
         return const _StatusStyle(
           label: 'Menipis',
           icon: Icons.warning_amber_rounded,
-          bg: Color(0xFFFFF0C2),
+          bg: AppColors.warningStatusBg,
           fg: _warnText,
           qtyColor: _warnText,
         );
@@ -607,7 +548,7 @@ class _BahanTile extends StatelessWidget {
         return const _StatusStyle(
           label: 'Habis',
           icon: Icons.cancel_outlined,
-          bg: Color(0xFFFFE3E6),
+          bg: AppColors.exhaustedStatusBg,
           fg: AppColors.red,
           qtyColor: AppColors.red,
         );

@@ -324,7 +324,7 @@ class _OutlinedCard extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFAF6),
+        color: AppColors.cardHighlight,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.cardBorder),
       ),

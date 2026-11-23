@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'colors.dart';
+import '../partials/colors.dart';
 
 // =====================================================
 // MODEL HASIL FILTER
@@ -24,9 +24,7 @@ class FilterBahan {
   });
 
   bool get isDefault =>
-      category == semuaKategori &&
-      status == null &&
-      sort == BahanSort.nama;
+      category == semuaKategori && status == null && sort == BahanSort.nama;
 }
 
 /// Membuka sheet filter. Mengembalikan [FilterBahan] jika user menekan
@@ -70,15 +68,15 @@ class FilterBahanSheet extends StatefulWidget {
 
 class _FilterBahanSheetState extends State<FilterBahanSheet> {
   // Warna khusus sheet ini (diambil dari desain)
-  static const _orange = Color(0xFFE59E2C);
-  static const _peach = Color(0xFFFFEAD8);
-  static const _rowBg = Color(0xFFFFEEE2);
-  static const _rowBgSelected = Color(0xFFFFE3CC);
-  static const _radioOff = Color(0xFFFADCC2);
-  static const _handle = Color(0xFFD9C3AD);
-  static const _sectionTitle = Color(0xFF9A3B12);
-  static const _subtitle = Color(0xFF6E6358);
-  static const _resetText = Color(0xFF4A5A7A);
+  static const _orange = AppColors.orangeAccent;
+  static const _peach = AppColors.peach;
+  static const _rowBg = AppColors.filterRowBg;
+  static const _rowBgSelected = AppColors.filterSelectedBg;
+  static const _radioOff = AppColors.radioOff;
+  static const _handle = AppColors.dragHandle;
+  static const _sectionTitle = AppColors.sectionTitle;
+  static const _subtitle = AppColors.subtitle;
+  static const _resetText = AppColors.resetText;
 
   late String _category;
   late StockStatus? _status;
@@ -185,8 +183,11 @@ class _FilterBahanSheetState extends State<FilterBahanSheet> {
                 color: _peach,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.close,
-                  size: 20, color: AppColors.brownDark),
+              child: const Icon(
+                Icons.close,
+                size: 20,
+                color: AppColors.brownDark,
+              ),
             ),
           ),
         ],
@@ -225,7 +226,7 @@ class _FilterBahanSheetState extends State<FilterBahanSheet> {
                       height: 8,
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Color(0xFF5A3A10),
+                        color: AppColors.deepBrown,
                       ),
                     )
                   : null,
@@ -287,21 +288,21 @@ class _FilterBahanSheetState extends State<FilterBahanSheet> {
       _statusChip(
         label: 'Aman',
         value: StockStatus.aman,
-        bg: const Color(0xFFE6F4E8),
+        bg: AppColors.safeTagBg,
         fg: AppColors.green,
         dot: AppColors.green,
       ),
       _statusChip(
         label: 'Menipis',
         value: StockStatus.menipis,
-        bg: const Color(0xFFFFE3D6),
-        fg: const Color(0xFF8A3B12),
-        dot: const Color(0xFFA0541A),
+        bg: AppColors.lowStockTagBg,
+        fg: AppColors.lowStockTagText,
+        dot: AppColors.lowStockTagDot,
       ),
       _statusChip(
         label: 'Habis',
         value: StockStatus.habis,
-        bg: const Color(0xFFFFE3E6),
+        bg: AppColors.exhaustedStatusBg,
         fg: AppColors.red,
         dot: AppColors.red,
       ),
@@ -432,8 +433,7 @@ class _FilterBahanSheetState extends State<FilterBahanSheet> {
                   icon: const Icon(Icons.restart_alt_rounded, size: 18),
                   label: const Text(
                     'Reset',
-                    style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
               ),
@@ -456,8 +456,7 @@ class _FilterBahanSheetState extends State<FilterBahanSheet> {
                   icon: const Icon(Icons.check, size: 18),
                   label: const Text(
                     'Terapkan Filter',
-                    style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
               ),
