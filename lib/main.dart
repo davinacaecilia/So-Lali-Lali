@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 import 'owner/dashboard.dart';
 import 'kitchen/kitchen_screen.dart';
 import 'kasir/kasir_screen.dart';
@@ -9,7 +12,12 @@ import 'auth/login.dart';
 import 'auth/daftar.dart';
 import 'auth/lupa_password.dart';
 import 'auth/verifikasi_akun.dart';
-void main() {
+
+import 'screen/home.dart';   // tambahan
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -37,6 +45,8 @@ class MyApp extends StatelessWidget {
         '/daftar': (context) => const RegisterScreen(),
         '/lupa-password': (context) => const ForgotPasswordScreen(),
         '/verifikasi-akun': (context) => const VerifyEmailScreen(),
+        '/owner': (context) => const DashboardOwnerPage(),   // tambahan
+        '/home': (context) => const HomeFrontendScreen(),    // tambahan (placeholder role lain)
       },
     );
   }

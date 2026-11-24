@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "925244798835",
+    "project_id": "so-lali-lali",
+    "storage_bucket": "so-lali-lali.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:925244798835:android:53892a34a6c6c4369a3706",
+        "android_client_info": {
+          "package_name": "com.example.tubes"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "925244798835-mkb1dtsko8iiaiejfdo3qnpajucq5qsg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.tubes",
+            "certificate_hash": "ffe210e0fd0865032206a7300b5498733bc4610a"
+          }
+        },
+        {
+          "client_id": "925244798835-gmjh0gas0khvhi84rkre44lnv8k7lrom.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAAQBbGtqsaVi_9_IZ4VyaRbfBshbExrFQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "925244798835-gmjh0gas0khvhi84rkre44lnv8k7lrom.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

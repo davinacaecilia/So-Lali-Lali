@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/auth_service.dart';
+import '../services/otp_service.dart';
 import 'auth_widgets.dart';
-import 'login.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
   final String email;
@@ -14,11 +17,24 @@ class VerifyEmailScreen extends StatefulWidget {
 }
 
 class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
+  static const _resendSeconds = 30;
+
   final _otpControllers = List.generate(4, (_) => TextEditingController());
   final _otpFocusNodes = List.generate(4, (_) => FocusNode());
 
+  Timer? _timer;
+  int _secondsLeft = _resendSeconds;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer(); // kode baru saja dikirim dari halaman Daftar
+  }
+
   @override
   void dispose() {
+    _timer?.cancel();
     for (final controller in _otpControllers) {
       controller.dispose();
     }
@@ -26,6 +42,61 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       node.dispose();
     }
     super.dispose();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    setState(() => _secondsLeft = _resendSeconds);
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      if (_secondsLeft <= 1) {
+        t.cancel();
+        setState(() => _secondsLeft = 0);
+      } else {
+        setState(() => _secondsLeft--);
+      }
+    });
+  }
+
+  String get _timerText {
+    final m = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
+    final s = (_secondsLeft % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  Future<void> _resend() async {
+    if (_sending || _secondsLeft > 0) return;
+    setState(() => _sending = true);
+    try {
+      await OtpService.instance.send(widget.email);
+      for (final c in _otpControllers) {
+        c.clear();
+      }
+      _otpFocusNodes.first.requestFocus();
+      _startTimer();
+      if (mounted) showAuthMessage(context, 'Kode baru sudah dikirim.');
+    } on AuthException catch (e) {
+      if (mounted) showAuthMessage(context, e.message);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  void _verify() {
+    final otp = _otpControllers.map((c) => c.text).join();
+    if (otp.length != 4) {
+      showAuthMessage(context, 'Masukkan 4 digit kode verifikasi.');
+      return;
+    }
+
+    final error = OtpService.instance.verify(widget.email, otp);
+    if (error != null) {
+      showAuthMessage(context, error);
+      return;
+    }
+
+    // Kode benar: kembali ke halaman Daftar dengan hasil true
+    Navigator.pop(context, true);
   }
 
   Widget _buildOtpBox(int index) {
@@ -75,6 +146,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canResend = _secondsLeft == 0 && !_sending;
+
     return AuthPageBackground(
       child: LayoutBuilder(
         builder: (context, constraints) => SingleChildScrollView(
@@ -86,7 +159,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 AuthLogoHeader(
                   title: 'Verifikasi Email',
                   subtitle:
-                      'Masukkan kode simulasi yang ditampilkan untuk email\n${widget.email}',
+                  'Masukkan kode yang dikirim ke email\n${widget.email}',
                   logoWidth: 180,
                 ),
                 const SizedBox(height: 32),
@@ -94,7 +167,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(
                     4,
-                    (index) => Padding(
+                        (index) => Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 5),
                       child: _buildOtpBox(index),
                     ),
@@ -102,24 +175,20 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'Kirim ulang kode dalam 10:00',
+                  _secondsLeft > 0
+                      ? 'Kirim ulang kode dalam $_timerText'
+                      : 'Tidak menerima kode?',
                   style: GoogleFonts.plusJakartaSans(
                     color: authBrown,
                     fontSize: 11,
                   ),
                 ),
                 TextButton(
-                  onPressed: () {
-                    for (final controller in _otpControllers) {
-                      controller.clear();
-                    }
-                    _otpFocusNodes.first.requestFocus();
-                    showAuthMessage(context, 'Kolom kode dikosongkan.');
-                  },
+                  onPressed: canResend ? _resend : null,
                   child: Text(
                     'Kirim ulang kode',
                     style: GoogleFonts.plusJakartaSans(
-                      color: authBrown,
+                      color: authBrown.withOpacity(canResend ? 1 : 0.4),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       decoration: TextDecoration.underline,
@@ -129,21 +198,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 const SizedBox(height: 34),
                 AuthPrimaryButton(
                   text: 'Verifikasi',
-                  onPressed: () {
-                    final otp = _otpControllers.map((c) => c.text).join();
-                    if (otp.length != 4) {
-                      showAuthMessage(context, 'Masukkan 4 digit kode verifikasi.');
-                      return;
-                    }
-
-                    // Simulasi verifikasi frontend: kembali ke halaman Login.
-                    showAuthMessage(context, 'Verifikasi berhasil (simulasi).');
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      (route) => false,
-                    );
-                  },
+                  onPressed: _verify,
                 ),
               ],
             ),

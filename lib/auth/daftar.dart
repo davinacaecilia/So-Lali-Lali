@@ -5,6 +5,9 @@ import 'auth_widgets.dart';
 import 'login.dart';
 import 'verifikasi_akun.dart';
 
+import '../services/auth_service.dart';
+import '../services/otp_service.dart';
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -19,6 +22,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _hidePassword = true;
+
+  bool _loading = false;
+
+  Future<void> _daftar() async {
+    if (_loading || _googleLoading) return;
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+    try {
+      final email = _emailController.text.trim();
+
+      // 1. kirim OTP
+      await OtpService.instance.send(email);
+      if (!mounted) return;
+
+      // 2. layar verifikasi mengembalikan true kalau kode benar
+      final verified = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => VerifyEmailScreen(email: email)),
+      );
+      if (verified != true || !mounted) return;
+
+      // 3. buat akun + simpan data
+      await AuthService.instance.registerOwner(
+        name: _nameController.text.trim(),
+        businessName: _businessController.text.trim(),
+        email: email,
+        password: _passwordController.text,
+      );
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(context, '/owner', (_) => false);
+    } on AuthException catch (e) {
+      if (mounted) showAuthMessage(context, e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  bool _googleLoading = false;
+
+  Future<void> _daftarWithGoogle() async {
+    if (_googleLoading) return;
+    setState(() => _googleLoading = true);
+    try {
+      final role = await AuthService.instance.signInWithGoogle();
+      if (role == null || !mounted) return; // dibatalkan user
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AuthService.routeForRole(role),
+            (_) => false,
+      );
+    } on AuthException catch (e) {
+      if (mounted) showAuthMessage(context, e.message);
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -91,28 +150,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 18),
                   AuthPrimaryButton(
                     text: 'Daftar',
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        // Simulasi daftar frontend: lanjut ke halaman verifikasi.
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => VerifyEmailScreen(
-                              email: _emailController.text.trim(),
-                            ),
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: _daftar,
                   ),
                   const SizedBox(height: 12),
                   Text('atau', style: GoogleFonts.plusJakartaSans(fontSize: 11)),
                   const SizedBox(height: 12),
                   AuthGoogleButton(
-                    onPressed: () => showAuthMessage(
-                      context,
-                      'Daftar dengan Google belum tersedia pada demo frontend.',
-                    ),
+                    onPressed: _daftarWithGoogle,
                   ),
                   const SizedBox(height: 13),
                   AuthBottomLink(

@@ -6,6 +6,8 @@ import 'daftar.dart';
 import 'lupa_password.dart';
 import '/screen/home.dart';
 
+import '../services/auth_service.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -18,6 +20,50 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _hidePassword = true;
+
+  bool _loading = false;
+
+  Future<void> _login() async {
+    if (_loading || _googleLoading) return;
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+    try {
+      final role = await AuthService.instance.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AuthService.routeForRole(role),
+            (_) => false,
+      );
+    } on AuthException catch (e) {
+      if (mounted) showAuthMessage(context, e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  bool _googleLoading = false;
+
+  Future<void> _loginWithGoogle() async {
+    if (_googleLoading) return;
+    setState(() => _googleLoading = true);
+    try {
+      final role = await AuthService.instance.signInWithGoogle();
+      if (role == null || !mounted) return; // dibatalkan user
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AuthService.routeForRole(role),
+            (_) => false,
+      );
+    } on AuthException catch (e) {
+      if (mounted) showAuthMessage(context, e.message);
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -119,26 +165,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 17),
                   AuthPrimaryButton(
                     text: 'Masuk',
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        // Simulasi login frontend: langsung pindah ke halaman Home.
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const HomeFrontendScreen(),
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: _login,
                   ),
                   const SizedBox(height: 12),
                   Text('atau', style: GoogleFonts.plusJakartaSans(fontSize: 11)),
                   const SizedBox(height: 12),
                   AuthGoogleButton(
-                    onPressed: () => showAuthMessage(
-                      context,
-                      'Login Google belum tersedia pada demo frontend.',
-                    ),
+                    onPressed: _loginWithGoogle,
                   ),
                   const SizedBox(height: 13),
                   AuthBottomLink(
