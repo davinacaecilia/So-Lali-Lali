@@ -113,14 +113,36 @@ class InformasiBahanPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Persediaan',
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
-                          ),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Persediaan',
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () {
+                                // TODO FE: buka form tambah batch
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: AppColors.orange,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.add,
+                                    color: Colors.white, size: 22),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 6),
                         const Divider(

@@ -2,26 +2,37 @@ import 'package:flutter/material.dart';
 
 import '../partials/colors.dart';
 import '../partials/status_badge.dart';
+import '../purchase/buat_po.dart';
 
-/// Halaman Detail Request - Staff Purchasing
-/// Hanya tampilan (UI). Data masih dummy, logic & API dikerjakan FE.
-///
-/// Tampilan mengikuti [status]:
-/// - selesai   : timeline sampai "PO Disetujui Owner" (hijau) + tombol Lihat Detail PO
-/// - diproses  : timeline berhenti di "Menunggu Verifikasi Owner" (abu-abu)
-/// - ditolak   : timeline berhenti di "PO Ditolak Owner" (merah) + kotak alasan penolakan
+enum RequestStage {
+  menungguOwner,
+  diprosesPurchasing,
+  poMenungguVerifikasi,
+  poSelesai,
+  requestDitolak,
+  poDitolak,
+}
 
 // ============================ MODEL (DUMMY) ============================
+enum _PoTag { belumPo, sudahPo }
+
 class _Product {
   final String name;
   final String qty;
-  const _Product(this.name, this.qty);
+  final _PoTag? tag;
+  const _Product(this.name, this.qty, {this.tag});
 }
 
 const List<_Product> _dummyProducts = [
   _Product('Biji Kopi Arabika', '18 g'),
   _Product('Biji Kopi Arabika', '18 g'),
   _Product('Biji Kopi Arabika', '18 g'),
+];
+
+// Dipakai saat stage diprosesPurchasing (ada label Belum PO / Sudah PO)
+const List<_Product> _dummyProductsBuatPo = [
+  _Product('Biji Kopi Arabika', '18 g', tag: _PoTag.belumPo),
+  _Product('Biji Kopi Arabika', '18 g', tag: _PoTag.sudahPo),
 ];
 
 class _Step {
@@ -36,7 +47,13 @@ class DetailRequestPage extends StatelessWidget {
   final String code;
   final String date;
   final String requestedBy;
+
+  /// Dipakai untuk menurunkan [stage] jika [stage] tidak diisi.
   final AppStatus status;
+
+  /// Isi untuk memilih tampilan secara spesifik (mis. poMenungguVerifikasi).
+  final RequestStage? stage;
+
   final String? rejectReason;
 
   const DetailRequestPage({
@@ -45,33 +62,138 @@ class DetailRequestPage extends StatelessWidget {
     this.date = '29 Nov 2026, 19:41',
     this.requestedBy = 'Kitchen Staff 1',
     this.status = AppStatus.selesai,
+    this.stage,
     this.rejectReason,
   });
 
-  bool get _isDone =>
-      status == AppStatus.selesai || status == AppStatus.disetujui;
-  bool get _isRejected => status == AppStatus.ditolak;
+  // ---------- turunan dari stage ----------
+  RequestStage get _stage {
+    if (stage != null) return stage!;
+    switch (status) {
+      case AppStatus.menunggu:
+        return RequestStage.menungguOwner;
+      case AppStatus.diproses:
+        return RequestStage.diprosesPurchasing;
+      case AppStatus.selesai:
+      case AppStatus.disetujui:
+        return RequestStage.poSelesai;
+      case AppStatus.ditolak:
+        return RequestStage.requestDitolak;
+    }
+  }
+
+  AppStatus get _badge {
+    switch (_stage) {
+      case RequestStage.menungguOwner:
+        return AppStatus.menunggu;
+      case RequestStage.diprosesPurchasing:
+      case RequestStage.poMenungguVerifikasi:
+        return AppStatus.diproses;
+      case RequestStage.poSelesai:
+        return AppStatus.selesai;
+      case RequestStage.requestDitolak:
+      case RequestStage.poDitolak:
+        return AppStatus.ditolak;
+    }
+  }
+
+  bool get _isRejected =>
+      _stage == RequestStage.requestDitolak || _stage == RequestStage.poDitolak;
 
   List<_Step> get _steps {
     const String d = '24 November 2026, 20:00';
-    final _Step last;
-    if (_isDone) {
-      last = const _Step('PO Disetujui Owner', d, Color(0xFF2E7D32));
-    } else if (_isRejected) {
-      last = const _Step('PO Ditolak Owner', d, Color(0xFFD32020));
-    } else {
-      last = const _Step('Menunggu Verifikasi Owner', d, Color(0xFFE3E3E8));
+    const Color orange = AppColors.orange;
+    const Color pale = Color(0xFFFDE5B0);
+    const Color blue = AppColors.primary;
+    const Color grey = Color(0xFFE3E3E8);
+    const Color green = Color(0xFF2E7D32);
+    const Color red = Color(0xFFD32020);
+
+    switch (_stage) {
+      case RequestStage.menungguOwner:
+        return const [
+          _Step('Request Restock Diajukan', d, orange),
+          _Step('Menunggu Verifikasi Owner', d, grey),
+        ];
+      case RequestStage.diprosesPurchasing:
+        return const [
+          _Step('Request Restock Diajukan', d, orange),
+          _Step('Request Disetujui Owner', d, pale),
+          _Step('Request Sedang Diproses Purchasing', d, grey),
+        ];
+      case RequestStage.poMenungguVerifikasi:
+        return const [
+          _Step('Request Restock Diajukan', d, orange),
+          _Step('Request Disetujui Owner', d, pale),
+          _Step('PO Dibuat Purchasing', d, blue),
+          _Step('Menunggu Verifikasi Owner', d, grey),
+        ];
+      case RequestStage.poSelesai:
+        return const [
+          _Step('Request Restock Diajukan', d, orange),
+          _Step('Request Disetujui Owner', d, pale),
+          _Step('PO Dibuat Purchasing', d, blue),
+          _Step('PO Disetujui Owner', d, green),
+        ];
+      case RequestStage.requestDitolak:
+        return const [
+          _Step('Request Restock Diajukan', d, orange),
+          _Step('Request Ditolak Owner', d, red),
+        ];
+      case RequestStage.poDitolak:
+        return const [
+          _Step('Request Restock Diajukan', d, orange),
+          _Step('Request Disetujui Owner', d, pale),
+          _Step('PO Dibuat Purchasing', d, blue),
+          _Step('PO Ditolak Owner', d, red),
+        ];
     }
-    return [
-      const _Step('Request Restock Diajukan', d, AppColors.orange),
-      const _Step('Request Disetujui Owner', d, Color(0xFFFDE5B0)),
-      const _Step('PO Dibuat  Purchasing', d, AppColors.primary),
-      last,
-    ];
+  }
+
+  List<_Product> get _products => _stage == RequestStage.diprosesPurchasing
+      ? _dummyProductsBuatPo
+      : _dummyProducts;
+
+  String? get _buttonLabel {
+    switch (_stage) {
+      case RequestStage.poSelesai:
+        return 'Lihat Detail Purchase Order';
+      case RequestStage.diprosesPurchasing:
+        return 'Buat Purchase Order';
+      default:
+        return null;
+    }
+  }
+
+  void _onButtonTap(BuildContext context) {
+    // TODO FE: poSelesai -> buka halaman Detail Purchase Order
+    if (_stage == RequestStage.diprosesPurchasing) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BuatPoPage.dariRequest(
+            requestCode: code,
+            // TODO FE: ganti dengan item request asli (qty & satuan terpisah)
+            items: [
+              for (final p in _products)
+                BuatPoItem(
+                  name: p.name,
+                  qty: double.tryParse(p.qty.split(' ').first) ?? 0,
+                  unit: p.qty.contains(' ') ? p.qty.split(' ').last : '',
+                  sudahPo: p.tag == _PoTag.sudahPo,
+                  supplier: p.tag == _PoTag.sudahPo ? 'PT Abdi Jaya' : null,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final String? buttonLabel = _buttonLabel;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(
@@ -87,7 +209,7 @@ class DetailRequestPage extends StatelessWidget {
                     code: code,
                     date: date,
                     requestedBy: requestedBy,
-                    status: status,
+                    status: _badge,
                   ),
                   const SizedBox(height: 22),
                   const _SectionTitle('Progress Request'),
@@ -102,15 +224,15 @@ class DetailRequestPage extends StatelessWidget {
                   const SizedBox(height: 12),
                   const _NeededBefore(date: '27 November 2026'),
                   const SizedBox(height: 10),
-                  for (final p in _dummyProducts) ...[
+                  for (final p in _products) ...[
                     _ProductRow(product: p),
                     const SizedBox(height: 10),
                   ],
-                  if (_isDone) ...[
-                    const SizedBox(height: 30),
+                  if (buttonLabel != null) ...[
+                    const SizedBox(height: 24),
                     _PrimaryButton(
-                      label: 'Lihat Detail Purchase Order',
-                      onTap: () {}, // TODO FE: buka detail Purchase Order
+                      label: buttonLabel,
+                      onTap: () => _onButtonTap(context),
                     ),
                   ],
                 ],
@@ -503,16 +625,26 @@ class _ProductRow extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  product.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                    color: AppColors.brownDark,
-                  ),
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        product.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
+                          color: AppColors.brownDark,
+                        ),
+                      ),
+                    ),
+                    if (product.tag != null) ...[
+                      const SizedBox(width: 8),
+                      _PoTagChip(tag: product.tag!),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -537,6 +669,37 @@ class _ProductRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PoTagChip extends StatelessWidget {
+  final _PoTag tag;
+
+  const _PoTagChip({required this.tag});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool belum = tag == _PoTag.belumPo;
+    final Color bg = belum ? AppColors.ditolakBg : AppColors.disetujuiBg;
+    final Color fg = belum ? AppColors.ditolakText : AppColors.disetujuiText;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: fg.withOpacity(0.35), width: 0.8),
+      ),
+      child: Text(
+        belum ? 'Belum PO' : 'Sudah PO',
+        style: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 9,
+          fontWeight: FontWeight.w500,
+          color: fg,
         ),
       ),
     );

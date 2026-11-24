@@ -9,7 +9,7 @@ import 'partials/status_badge.dart';
 /// Hanya tampilan (UI). Data masih dummy, logic & integrasi API dikerjakan FE.
 
 // ============================ MODEL (DUMMY) ============================
-enum _ItemType { box, waste, opname }
+enum _ItemType { box, po, opname, terima }
 
 class _RestockItem {
   final _ItemType type;
@@ -35,14 +35,14 @@ const List<_RestockItem> _dummyItems = [
     title: 'Request Restock',
     subtitle: 'RR-241129–002',
     time: '13:59 WIB',
-    status: AppStatus.diproses,
+    trailingText: '1 item',
   ),
   _RestockItem(
-    type: _ItemType.waste,
-    title: 'Waste',
-    subtitle: 'Susu UHT Full Cream',
-    time: '',
-    trailingText: '2 L',
+    type: _ItemType.po,
+    title: 'Purchase Order',
+    subtitle: 'PO-0016',
+    time: '13:59 WIB',
+    trailingText: '1 item',
   ),
   _RestockItem(
     type: _ItemType.opname,
@@ -59,11 +59,11 @@ const List<_RestockItem> _dummyItems = [
     status: AppStatus.disetujui,
   ),
   _RestockItem(
-    type: _ItemType.box,
-    title: 'Request Restock',
-    subtitle: 'RR-241129–002',
+    type: _ItemType.terima,
+    title: 'Terima Barang',
+    subtitle: 'PO-0016',
     time: '13:59 WIB',
-    status: AppStatus.ditolak,
+    trailingText: '1 item',
   ),
 ];
 
@@ -111,7 +111,7 @@ class _QuickActions extends StatelessWidget {
       children: const [
         _ActionButton(icon: Icons.add, label: 'Purchase\nOrder'),
         _ActionButton(
-            icon: Icons.document_scanner_outlined, label: 'Scan\nTerima'),
+            icon: Icons.inventory_2, label: 'Riwayat\nRestock'),
         _ActionButton(icon: Icons.assignment_outlined, label: 'Opname\nHarian'),
       ],
     );
@@ -167,17 +167,15 @@ class _SummaryCards extends StatelessWidget {
       children: const [
         Expanded(
           child: _SummaryCard(
-            title: 'Stock Menipis',
             value: '80',
-            note: 'dibawah minimum',
+            label: 'Request Restock\nbelum di PO',
           ),
         ),
         SizedBox(width: 16),
         Expanded(
           child: _SummaryCard(
-            title: 'Hampir Expired',
             value: '80',
-            note: 'dalam 7 hari',
+            label: 'PO menunggu\nApproval Owner',
           ),
         ),
       ],
@@ -186,38 +184,23 @@ class _SummaryCards extends StatelessWidget {
 }
 
 class _SummaryCard extends StatelessWidget {
-  final String title;
   final String value;
-  final String note;
+  final String label;
 
-  const _SummaryCard({
-    required this.title,
-    required this.value,
-    required this.note,
-  });
+  const _SummaryCard({required this.value, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
+      padding: const EdgeInsets.fromLTRB(24, 26, 12, 22),
       decoration: BoxDecoration(
         color: AppColors.cardWarnBg,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.cardWarnBorder, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: AppColors.brownDark,
-            ),
-          ),
-          const SizedBox(height: 4),
           Text(
             value,
             style: const TextStyle(
@@ -230,12 +213,13 @@ class _SummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            note,
+            label,
             style: const TextStyle(
               fontFamily: 'Poppins',
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: AppColors.red,
+              color: AppColors.brownDark,
+              height: 1.25,
             ),
           ),
         ],
@@ -255,14 +239,14 @@ class _RestockCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.cardBorder, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Request Restock Terbaru',
+            'Aktivitas Terbaru',
             style: TextStyle(
               fontFamily: 'Poppins',
               fontSize: 16,
@@ -287,8 +271,10 @@ class _RestockRow extends StatelessWidget {
     switch (item.type) {
       case _ItemType.box:
         return Icons.inventory_2;
-      case _ItemType.waste:
-        return Icons.delete_outline_rounded;
+      case _ItemType.po:
+        return Icons.monetization_on_outlined;
+      case _ItemType.terima:
+        return Icons.volunteer_activism_outlined;
       case _ItemType.opname:
         return Icons.assignment_outlined;
     }
@@ -343,33 +329,34 @@ class _RestockRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          if (item.trailingText != null)
-            Text(
-              item.trailingText!,
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
-            )
-          else
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                StatusBadge(status: item.status!),
-                const SizedBox(height: 4),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (item.status != null)
+                StatusBadge(status: item.status!)
+              else
                 Text(
-                  item.time,
+                  item.trailingText!,
                   style: const TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: AppColors.subText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.diprosesText,
+                    height: 1.25,
                   ),
                 ),
-              ],
-            ),
+              const SizedBox(height: 4),
+              Text(
+                item.time,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.subText,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

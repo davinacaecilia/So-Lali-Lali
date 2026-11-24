@@ -321,12 +321,19 @@ class _FilterRiwayatSheetState extends State<_FilterRiwayatSheet> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.brown, width: 1),
+                        border: Border.all(color: AppColors.sectionTitle, width: 1.3),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.calendar_today_outlined,
-                              color: AppColors.brownDark, size: 20),
+                          Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                  color: AppColors.brownDark, width: 1.8),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -334,14 +341,12 @@ class _FilterRiwayatSheetState extends State<_FilterRiwayatSheet> {
                               style: TextStyle(
                                 fontFamily: 'Poppins',
                                 fontSize: 14,
-                                color: _range == null
-                                    ? AppColors.subText
-                                    : AppColors.brownDark,
+                                color: AppColors.brownDark,
                               ),
                             ),
                           ),
                           const Icon(Icons.keyboard_arrow_down_rounded,
-                              color: AppColors.brown, size: 24),
+                              color: AppColors.sectionTitle, size: 24),
                         ],
                       ),
                     ),
@@ -377,7 +382,7 @@ class _FilterRiwayatSheetState extends State<_FilterRiwayatSheet> {
                           label: 'Reset',
                           icon: Icons.refresh_rounded,
                           background: AppColors.filterItemBg,
-                          foreground: AppColors.primary,
+                          foreground: AppColors.brownDark,
                           onTap: _reset,
                         ),
                       ),
@@ -456,15 +461,19 @@ class _StatusFilterChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           border: selected ? Border.all(color: fg, width: 1.2) : null,
         ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: fg,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: fg,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -618,11 +627,6 @@ class _SheetHeader extends StatelessWidget {
         ),
         Container(
           padding: const EdgeInsets.fromLTRB(23, 20, 23, 10),
-          decoration: const BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: AppColors.cardWarnBorder, width: 1),
-            ),
-          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -654,16 +658,16 @@ class _SheetHeader extends StatelessWidget {
               ),
               InkWell(
                 onTap: () => Navigator.pop(context),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
                 child: Container(
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
                     color: AppColors.filterItemBg,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(Icons.close_rounded,
-                      color: AppColors.brownDark, size: 22),
+                      color: AppColors.brown, size: 22),
                 ),
               ),
             ],
@@ -686,7 +690,7 @@ class _SectionTitle extends StatelessWidget {
       style: const TextStyle(
         fontFamily: 'Poppins',
         fontSize: 14,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
         color: AppColors.sectionTitle,
       ),
     );
@@ -712,12 +716,21 @@ class _SheetButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         height: 48,
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: background == AppColors.orange
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.18),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
         ),
         alignment: Alignment.center,
         child: Row(
@@ -729,7 +742,7 @@ class _SheetButton extends StatelessWidget {
               label,
               style: TextStyle(
                 fontFamily: 'Poppins',
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: foreground,
               ),

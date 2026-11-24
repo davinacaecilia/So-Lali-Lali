@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../dashboard.dart';
 import '../stok/stokpage.dart';
+import '../purchase/purchase_page.dart';
+import '../terima/terima_page.dart';
+import '../opname/opname_page.dart';
 import 'colors.dart';
 
 /// Bottom navigation global.
@@ -38,8 +41,13 @@ class AppBottomNav extends StatelessWidget {
       page = const DashboardPurchasing();
     } else if (index == 1) {
       page = const StokPage();
+    } else if (index == 2) {
+      page = const PurchasePage();
+    } else if (index == 3) {
+      page = const TerimaPage();
+    } else if (index == 4) {
+      page = const OpnamePage();
     }
-    // index 2 (Purchase), 3 (Terima), 4 (Opname): tambahkan saat halamannya sudah ada
 
     if (page == null) return;
 
