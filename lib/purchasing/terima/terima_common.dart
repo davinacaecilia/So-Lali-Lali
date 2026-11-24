@@ -32,7 +32,7 @@ String fmtDate(DateTime d) => '${d.day} ${_bulan[d.month - 1]} ${d.year}';
 
 // ============================ STYLE ============================
 TextStyle ts(double size, FontWeight w, Color c, {double? h}) =>
-    TextStyle(fontFamily: 'Poppins', fontSize: size, fontWeight: w, color: c, height: h);
+    TextStyle(fontFamily: kFont, fontSize: size, fontWeight: w, color: c, height: h);
 
 BoxDecoration cardDeco({Color color = Colors.white}) => BoxDecoration(
       color: color,

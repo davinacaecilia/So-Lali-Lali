@@ -137,7 +137,7 @@ class _RiwayatRow extends StatelessWidget {
                               Text(
                                 item.code,
                                 style: const TextStyle(
-                                  fontFamily: 'Poppins',
+                                  fontFamily: kFont,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.brownDark,
@@ -147,7 +147,7 @@ class _RiwayatRow extends StatelessWidget {
                               Text(
                                 item.date,
                                 style: const TextStyle(
-                                  fontFamily: 'Poppins',
+                                  fontFamily: kFont,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w400,
                                   color: AppColors.brownDark,
@@ -164,7 +164,7 @@ class _RiwayatRow extends StatelessWidget {
                             Text(
                               '${item.itemCount} Item',
                               style: const TextStyle(
-                                fontFamily: 'Poppins',
+                                fontFamily: kFont,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w400,
                                 color: AppColors.brownDark,
@@ -187,7 +187,7 @@ class _RiwayatRow extends StatelessWidget {
                         child: Text(
                           item.note!,
                           style: const TextStyle(
-                            fontFamily: 'Poppins',
+                            fontFamily: kFont,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: AppColors.brown,
@@ -339,7 +339,7 @@ class _FilterRiwayatSheetState extends State<_FilterRiwayatSheet> {
                             child: Text(
                               dateText,
                               style: TextStyle(
-                                fontFamily: 'Poppins',
+                                fontFamily: kFont,
                                 fontSize: 14,
                                 color: AppColors.brownDark,
                               ),
@@ -467,7 +467,7 @@ class _StatusFilterChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Poppins',
+                fontFamily: kFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 color: fg,
@@ -525,7 +525,7 @@ class _TopBar extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: AppColors.brownDark,
@@ -563,7 +563,7 @@ class _SearchBar extends StatelessWidget {
                 Expanded(
                   child: TextField(
                     style: const TextStyle(
-                      fontFamily: 'Poppins',
+                      fontFamily: kFont,
                       fontSize: 14,
                       color: AppColors.brownDark,
                     ),
@@ -572,7 +572,7 @@ class _SearchBar extends StatelessWidget {
                       border: InputBorder.none,
                       hintText: hint,
                       hintStyle: TextStyle(
-                        fontFamily: 'Poppins',
+                        fontFamily: kFont,
                         fontSize: 14,
                         color: AppColors.subText.withOpacity(0.7),
                       ),
@@ -637,7 +637,7 @@ class _SheetHeader extends StatelessWidget {
                     Text(
                       title,
                       style: const TextStyle(
-                        fontFamily: 'Poppins',
+                        fontFamily: kFont,
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
                         color: AppColors.brownDark,
@@ -647,7 +647,7 @@ class _SheetHeader extends StatelessWidget {
                     Text(
                       subtitle,
                       style: const TextStyle(
-                        fontFamily: 'Poppins',
+                        fontFamily: kFont,
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                         color: AppColors.subText,
@@ -688,7 +688,7 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        fontFamily: 'Poppins',
+        fontFamily: kFont,
         fontSize: 14,
         fontWeight: FontWeight.w600,
         color: AppColors.sectionTitle,
@@ -741,7 +741,7 @@ class _SheetButton extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Poppins',
+                fontFamily: kFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: foreground,

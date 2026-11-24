@@ -57,7 +57,7 @@ class StatusBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          fontFamily: 'Poppins',
+          fontFamily: kFont,
           fontSize: 12,
           fontWeight: FontWeight.w500,
           color: fg,

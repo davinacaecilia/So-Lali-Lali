@@ -86,7 +86,7 @@ class InformasiBahanPage extends StatelessWidget {
                         Text(
                           name,
                           style: const TextStyle(
-                            fontFamily: 'Poppins',
+                            fontFamily: kFont,
                             fontSize: 24,
                             fontWeight: FontWeight.w700,
                             color: AppColors.brownDark,
@@ -96,7 +96,7 @@ class InformasiBahanPage extends StatelessWidget {
                         Text(
                           category,
                           style: const TextStyle(
-                            fontFamily: 'Poppins',
+                            fontFamily: kFont,
                             fontSize: 12,
                             fontWeight: FontWeight.w400,
                             color: AppColors.brownDark,
@@ -119,7 +119,7 @@ class InformasiBahanPage extends StatelessWidget {
                               child: Text(
                                 'Persediaan',
                                 style: TextStyle(
-                                  fontFamily: 'Poppins',
+                                  fontFamily: kFont,
                                   fontSize: 22,
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.primary,
@@ -203,7 +203,7 @@ class _TopBar extends StatelessWidget {
           const Text(
             'Informasi Bahan',
             style: TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: AppColors.brownDark,
@@ -285,7 +285,7 @@ class _ImageHeader extends StatelessWidget {
                     Text(
                       label,
                       style: TextStyle(
-                        fontFamily: 'Poppins',
+                        fontFamily: kFont,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: fg,
@@ -363,7 +363,7 @@ class _InfoRow extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 14,
               fontWeight: FontWeight.w400,
               color: AppColors.sectionTitle,
@@ -372,7 +372,7 @@ class _InfoRow extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: AppColors.brownDark,
@@ -403,7 +403,7 @@ class _TotalCard extends StatelessWidget {
           Text(
             'Total 16 kg dalam 2 batch',
             style: TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: AppColors.brownDark,
@@ -413,7 +413,7 @@ class _TotalCard extends StatelessWidget {
           Text(
             'Diurutkan dari tanggal kadaluwarsa terdekat',
             style: TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 12,
               fontWeight: FontWeight.w400,
               color: AppColors.sectionTitle,
@@ -455,7 +455,7 @@ class _BatchCard extends StatelessWidget {
                       Text(
                         batch.name,
                         style: const TextStyle(
-                          fontFamily: 'Poppins',
+                          fontFamily: kFont,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: AppColors.brownDark,
@@ -519,7 +519,7 @@ class _TagChip extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: AppColors.sectionTitle,
@@ -545,7 +545,7 @@ class _DetailRow extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: kFont,
             fontSize: 14,
             fontWeight: FontWeight.w400,
             color: AppColors.subText,
@@ -554,7 +554,7 @@ class _DetailRow extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: kFont,
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: AppColors.brownDark,
@@ -587,7 +587,7 @@ class _AlertRow extends StatelessWidget {
               Text(
                 alert.title,
                 style: const TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: AppColors.sectionTitle,
@@ -597,7 +597,7 @@ class _AlertRow extends StatelessWidget {
               Text(
                 alert.message,
                 style: const TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
                   color: AppColors.brownDark,

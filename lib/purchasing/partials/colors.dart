@@ -56,3 +56,5 @@ class AppColors {
   static const Color habisChipBg = Color(0xFFFDE0E3);
   static const Color habisChipText = Color(0xFFC62828);
 }
+
+const String kFont = 'Plus Jakarta Sans';

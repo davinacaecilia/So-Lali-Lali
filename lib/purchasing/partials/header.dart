@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'colors.dart';
 
-/// Header global: logo, judul, subjudul, notifikasi, dan avatar.
 class AppHeader extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -60,7 +59,7 @@ class AppHeader extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                     color: AppColors.brown,
@@ -70,7 +69,7 @@ class AppHeader extends StatelessWidget {
                 Text(
                   subtitle,
                   style: const TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 15,
                     fontWeight: FontWeight.w400,
                     color: AppColors.brown,

@@ -205,7 +205,7 @@ class _SheetHeader extends StatelessWidget {
                     Text(
                       'Filter Bahan',
                       style: TextStyle(
-                        fontFamily: 'Poppins',
+                        fontFamily: kFont,
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
                         color: AppColors.brownDark,
@@ -215,7 +215,7 @@ class _SheetHeader extends StatelessWidget {
                     Text(
                       'Pilih kategori dan status stok bahan dapur',
                       style: TextStyle(
-                        fontFamily: 'Poppins',
+                        fontFamily: kFont,
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                         color: AppColors.subText,
@@ -287,7 +287,7 @@ class _CategoryTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 16,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
                     color: AppColors.brownDark,
@@ -304,7 +304,7 @@ class _CategoryTile extends StatelessWidget {
                 child: Text(
                   '${category.count} menu',
                   style: const TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: AppColors.brownDark,
@@ -359,7 +359,7 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        fontFamily: 'Poppins',
+        fontFamily: kFont,
         fontSize: 14,
         fontWeight: FontWeight.w500,
         color: AppColors.sectionTitle,
@@ -412,7 +412,7 @@ class _StatusChips extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: active && value == StokStatus.semua
@@ -500,7 +500,7 @@ class _SortChips extends StatelessWidget {
               child: Text(
                 option.value,
                 style: TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: active ? Colors.white : AppColors.brownDark,
@@ -550,7 +550,7 @@ class _SheetButton extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Poppins',
+                fontFamily: kFont,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 color: foreground,

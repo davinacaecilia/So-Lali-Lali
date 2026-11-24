@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../partials/colors.dart';
 import '../partials/header.dart';
 import '../partials/navbar.dart';
-import 'buat_po.dart';
 import 'detail_po.dart';
 
 // ============================ MODEL (DUMMY) ============================
@@ -111,12 +110,7 @@ class _PurchasePageState extends State<PurchasePage> {
                   right: 24,
                   bottom: 22,
                   child: _AddButton(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BuatPoPage.manual(),
-                      ),
-                    ),
+                    onTap: () {}, // TODO FE: buka halaman Buat PO
                   ),
                 ),
               ],
@@ -152,7 +146,7 @@ class _SearchField extends StatelessWidget {
           Expanded(
             child: TextField(
               style: const TextStyle(
-                fontFamily: 'Poppins',
+                fontFamily: kFont,
                 fontSize: 14,
                 color: AppColors.brownDark,
               ),
@@ -161,7 +155,7 @@ class _SearchField extends StatelessWidget {
                 border: InputBorder.none,
                 hintText: hint,
                 hintStyle: TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 14,
                   color: AppColors.subText.withOpacity(0.7),
                 ),
@@ -203,7 +197,7 @@ class _FilterChips extends StatelessWidget {
               child: Text(
                 _filters[i].key,
                 style: TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: active ? Colors.white : AppColors.brown,
@@ -261,7 +255,7 @@ class _PoCard extends StatelessWidget {
                       child: Text(
                         po.code,
                         style: const TextStyle(
-                          fontFamily: 'Poppins',
+                          fontFamily: kFont,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                           color: AppColors.brown,
@@ -276,7 +270,7 @@ class _PoCard extends StatelessWidget {
               Text(
                 po.supplier,
                 style: const TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: AppColors.brownDark,
@@ -287,7 +281,7 @@ class _PoCard extends StatelessWidget {
               Text(
                 po.summary,
                 style: const TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
                   color: AppColors.subText,

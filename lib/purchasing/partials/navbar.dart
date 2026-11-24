@@ -6,8 +6,7 @@ import '../terima/terima_page.dart';
 import '../opname/opname_page.dart';
 import 'colors.dart';
 
-/// Bottom navigation global.
-/// [currentIndex] menentukan menu yang aktif, [onTap] dipanggil saat menu ditekan.
+/// Bottom navigation.
 class AppBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int>? onTap;
@@ -127,7 +126,7 @@ class _NavItem extends StatelessWidget {
           Text(
             data.label,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 12,
               fontWeight: FontWeight.w500,
               color: AppColors.brownDark,

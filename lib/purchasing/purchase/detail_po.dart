@@ -179,7 +179,7 @@ class PoBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          fontFamily: 'Poppins',
+          fontFamily: kFont,
           fontSize: 12,
           fontWeight: FontWeight.w500,
           color: fg,
@@ -233,7 +233,7 @@ class _TopBar extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: AppColors.brownDark,
@@ -280,7 +280,7 @@ class _PoHeader extends StatelessWidget {
               child: Text(
                 code,
                 style: const TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                   color: AppColors.iconBrown,
@@ -313,7 +313,7 @@ class _InfoLine extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: kFont,
             fontSize: 11,
             fontWeight: FontWeight.w600,
             color: AppColors.sectionTitle,
@@ -322,7 +322,7 @@ class _InfoLine extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: kFont,
             fontSize: 11,
             fontWeight: FontWeight.w400,
             color: AppColors.brownDark,
@@ -351,7 +351,7 @@ class _ReceivedStrip extends StatelessWidget {
       child: Text(
         text,
         style: const TextStyle(
-          fontFamily: 'Poppins',
+          fontFamily: kFont,
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: AppColors.brown,
@@ -388,7 +388,7 @@ class _InfoBanner extends StatelessWidget {
             child: Text(
               text,
               style: const TextStyle(
-                fontFamily: 'Poppins',
+                fontFamily: kFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
                 color: AppColors.brown,
@@ -426,7 +426,7 @@ class _RejectBox extends StatelessWidget {
               Text(
                 'Alasan Penolakan',
                 style: TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFFD32020),
@@ -445,7 +445,7 @@ class _RejectBox extends StatelessWidget {
             child: Text(
               reason,
               style: const TextStyle(
-                fontFamily: 'Poppins',
+                fontFamily: kFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w400,
                 color: AppColors.brownDark,
@@ -489,7 +489,7 @@ class _SupplierCard extends StatelessWidget {
                 child: Text(
                   supplier,
                   style: const TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: AppColors.brown,
@@ -512,7 +512,7 @@ class _SupplierCard extends StatelessWidget {
               Text(
                 'Total PO',
                 style: TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
                   color: AppColors.brownDark,
@@ -521,7 +521,7 @@ class _SupplierCard extends StatelessWidget {
               Text(
                 'Rp 240.000',
                 style: TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: AppColors.brownDark,
@@ -549,7 +549,7 @@ class _ItemBlock extends StatelessWidget {
         Text(
           item.name,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: kFont,
             fontSize: 12,
             fontWeight: FontWeight.w500,
             color: AppColors.brown,
@@ -564,7 +564,7 @@ class _ItemBlock extends StatelessWidget {
               child: Text(
                 'x',
                 style: TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 11,
                   color: AppColors.subText,
                 ),
@@ -575,7 +575,7 @@ class _ItemBlock extends StatelessWidget {
             Text(
               item.subtotal,
               style: const TextStyle(
-                fontFamily: 'Poppins',
+                fontFamily: kFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: AppColors.brownDark,
@@ -603,7 +603,7 @@ class _AmountField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const TextStyle style = TextStyle(
-      fontFamily: 'Poppins',
+      fontFamily: kFont,
       fontSize: 12,
       fontWeight: FontWeight.w500,
       color: AppColors.brownDark,
@@ -680,7 +680,7 @@ class _PrimaryButton extends StatelessWidget {
         child: Text(
           label,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: kFont,
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: Colors.white,

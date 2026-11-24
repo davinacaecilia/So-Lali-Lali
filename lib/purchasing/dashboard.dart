@@ -5,9 +5,6 @@ import 'partials/navbar.dart';
 import 'partials/header.dart';
 import 'partials/status_badge.dart';
 
-/// Dashboard Staff Purchasing - SO LALI LALI
-/// Hanya tampilan (UI). Data masih dummy, logic & integrasi API dikerjakan FE.
-
 // ============================ MODEL (DUMMY) ============================
 enum _ItemType { box, po, opname, terima }
 
@@ -144,7 +141,7 @@ class _ActionButton extends StatelessWidget {
             label,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: AppColors.brownDark,
@@ -204,7 +201,7 @@ class _SummaryCard extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 26,
               fontWeight: FontWeight.w700,
               color: AppColors.orange,
@@ -215,7 +212,7 @@ class _SummaryCard extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: AppColors.brownDark,
@@ -248,7 +245,7 @@ class _RestockCard extends StatelessWidget {
           const Text(
             'Aktivitas Terbaru',
             style: TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: AppColors.brown,
@@ -306,7 +303,7 @@ class _RestockRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: AppColors.brownDark,
@@ -318,7 +315,7 @@ class _RestockRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
                     color: AppColors.subText,
@@ -338,7 +335,7 @@ class _RestockRow extends StatelessWidget {
                 Text(
                   item.trailingText!,
                   style: const TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: AppColors.diprosesText,
@@ -349,7 +346,7 @@ class _RestockRow extends StatelessWidget {
               Text(
                 item.time,
                 style: const TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
                   color: AppColors.subText,

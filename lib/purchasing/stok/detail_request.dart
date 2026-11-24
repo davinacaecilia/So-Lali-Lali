@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../partials/colors.dart';
 import '../partials/status_badge.dart';
-import '../purchase/buat_po.dart';
 
 enum RequestStage {
   menungguOwner,
@@ -166,28 +165,9 @@ class DetailRequestPage extends StatelessWidget {
   }
 
   void _onButtonTap(BuildContext context) {
-    // TODO FE: poSelesai -> buka halaman Detail Purchase Order
-    if (_stage == RequestStage.diprosesPurchasing) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => BuatPoPage.dariRequest(
-            requestCode: code,
-            // TODO FE: ganti dengan item request asli (qty & satuan terpisah)
-            items: [
-              for (final p in _products)
-                BuatPoItem(
-                  name: p.name,
-                  qty: double.tryParse(p.qty.split(' ').first) ?? 0,
-                  unit: p.qty.contains(' ') ? p.qty.split(' ').last : '',
-                  sudahPo: p.tag == _PoTag.sudahPo,
-                  supplier: p.tag == _PoTag.sudahPo ? 'PT Abdi Jaya' : null,
-                ),
-            ],
-          ),
-        ),
-      );
-    }
+    // TODO FE:
+    // - poSelesai          -> buka halaman Detail Purchase Order
+    // - diprosesPurchasing -> buka halaman Buat PO
   }
 
   @override
@@ -289,7 +269,7 @@ class _TopBar extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: AppColors.brownDark,
@@ -336,7 +316,7 @@ class _RequestHeader extends StatelessWidget {
               child: Text(
                 code,
                 style: const TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                   color: AppColors.iconBrown,
@@ -369,7 +349,7 @@ class _InfoLine extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: kFont,
             fontSize: 11,
             fontWeight: FontWeight.w600,
             color: AppColors.sectionTitle,
@@ -378,7 +358,7 @@ class _InfoLine extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: kFont,
             fontSize: 11,
             fontWeight: FontWeight.w400,
             color: AppColors.brownDark,
@@ -403,7 +383,7 @@ class _SectionTitle extends StatelessWidget {
         Text(
           text,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: kFont,
             fontSize: 16,
             fontWeight: FontWeight.w700,
             color: AppColors.primary,
@@ -480,7 +460,7 @@ class _TimelineItem extends StatelessWidget {
               Text(
                 step.title,
                 style: const TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: AppColors.brownDark,
@@ -490,7 +470,7 @@ class _TimelineItem extends StatelessWidget {
               Text(
                 step.date,
                 style: const TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 11,
                   fontWeight: FontWeight.w400,
                   color: AppColors.menungguText,
@@ -530,7 +510,7 @@ class _RejectBox extends StatelessWidget {
               Text(
                 'Alasan Penolakan',
                 style: TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFFD32020),
@@ -549,7 +529,7 @@ class _RejectBox extends StatelessWidget {
             child: Text(
               reason,
               style: const TextStyle(
-                fontFamily: 'Poppins',
+                fontFamily: kFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w400,
                 color: AppColors.brownDark,
@@ -583,7 +563,7 @@ class _NeededBefore extends StatelessWidget {
           const Text(
             'Dibutuhkan Sebelum',
             style: TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 10,
               fontWeight: FontWeight.w400,
               color: AppColors.sectionTitle,
@@ -592,7 +572,7 @@ class _NeededBefore extends StatelessWidget {
           Text(
             date,
             style: const TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: AppColors.brownDark,
@@ -633,7 +613,7 @@ class _ProductRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontFamily: 'Poppins',
+                          fontFamily: kFont,
                           fontSize: 13,
                           fontWeight: FontWeight.w400,
                           color: AppColors.brownDark,
@@ -661,7 +641,7 @@ class _ProductRow extends StatelessWidget {
               child: Text(
                 product.qty,
                 style: const TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: AppColors.brownDark,
@@ -696,7 +676,7 @@ class _PoTagChip extends StatelessWidget {
       child: Text(
         belum ? 'Belum PO' : 'Sudah PO',
         style: TextStyle(
-          fontFamily: 'Poppins',
+          fontFamily: kFont,
           fontSize: 9,
           fontWeight: FontWeight.w500,
           color: fg,
@@ -729,7 +709,7 @@ class _PrimaryButton extends StatelessWidget {
         child: Text(
           label,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: kFont,
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: Colors.white,

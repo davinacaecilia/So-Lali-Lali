@@ -140,7 +140,7 @@ class _HistoryBanner extends StatelessWidget {
                 child: Text(
                   'Lihat Riwayat Request Restock',
                   style: TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -215,7 +215,7 @@ class _StokRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: AppColors.brownDark,
@@ -225,7 +225,7 @@ class _StokRow extends StatelessWidget {
                 Text(
                   item.category,
                   style: const TextStyle(
-                    fontFamily: 'Poppins',
+                    fontFamily: kFont,
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
                     color: AppColors.subText,
@@ -244,7 +244,7 @@ class _StokRow extends StatelessWidget {
               Text(
                 item.qty,
                 style: TextStyle(
-                  fontFamily: 'Poppins',
+                  fontFamily: kFont,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: qtyColor,
@@ -307,7 +307,7 @@ class _StokChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: kFont,
               fontSize: 12,
               fontWeight: FontWeight.w500,
               color: fg,
@@ -346,7 +346,7 @@ class _SearchRow extends StatelessWidget {
                 Expanded(
                   child: TextField(
                     style: const TextStyle(
-                      fontFamily: 'Poppins',
+                      fontFamily: kFont,
                       fontSize: 14,
                       color: AppColors.brownDark,
                     ),
@@ -355,7 +355,7 @@ class _SearchRow extends StatelessWidget {
                       border: InputBorder.none,
                       hintText: 'Cari nama menu',
                       hintStyle: TextStyle(
-                        fontFamily: 'Poppins',
+                        fontFamily: kFont,
                         fontSize: 14,
                         color: AppColors.subText.withOpacity(0.7),
                       ),
