@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../partials/colors.dart';
 import '../partials/header.dart';
 import '../partials/navbar.dart';
+import 'buat_po.dart';
 import 'detail_po.dart';
 
 // ============================ MODEL (DUMMY) ============================
@@ -110,7 +111,11 @@ class _PurchasePageState extends State<PurchasePage> {
                   right: 24,
                   bottom: 22,
                   child: _AddButton(
-                    onTap: () {}, // TODO FE: buka halaman Buat PO
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const BuatPoPage.manual()),
+                    ),
                   ),
                 ),
               ],

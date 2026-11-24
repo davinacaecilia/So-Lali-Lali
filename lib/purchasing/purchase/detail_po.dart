@@ -118,7 +118,33 @@ class DetailPoPage extends StatelessWidget {
               ),
               child: _PrimaryButton(
                 label: 'Ajukan Purchase Order',
-                onTap: () {}, // TODO FE: ajukan PO ke Owner
+                onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final nav = Navigator.of(context);
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (c) => AlertDialog(
+                      backgroundColor: Colors.white,
+                      surfaceTintColor: Colors.transparent,
+                      title: const Text('Ajukan Purchase Order?'),
+                      content: const Text('PO akan dikirim ke Owner untuk direview.'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(c, false),
+                            child: const Text('Batal')),
+                        TextButton(
+                            onPressed: () => Navigator.pop(c, true),
+                            child: const Text('Ajukan')),
+                      ],
+                    ),
+                  );
+                  // TODO FE: ajukan PO ke API
+                  if (ok == true) {
+                    messenger.showSnackBar(const SnackBar(
+                        content: Text('PO berhasil diajukan ke Owner')));
+                    nav.maybePop();
+                  }
+                },
               ),
             ),
         ],

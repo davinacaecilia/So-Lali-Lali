@@ -1,6 +1,33 @@
 import 'package:flutter/material.dart';
 import 'colors.dart';
 
+void _infoSheet(BuildContext context, IconData icon, String title, String body) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (_) => Padding(
+      padding: EdgeInsets.fromLTRB(
+          24, 24, 24, MediaQuery.of(context).padding.bottom + 32),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 40, color: AppColors.iconBrown),
+        const SizedBox(height: 12),
+        Text(title,
+            style: const TextStyle(
+                fontFamily: kFont,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.brownDark)),
+        const SizedBox(height: 4),
+        Text(body,
+            style: const TextStyle(
+                fontFamily: kFont, fontSize: 12, color: AppColors.subText)),
+      ]),
+    ),
+  );
+}
+
 class AppHeader extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -81,7 +108,9 @@ class AppHeader extends StatelessWidget {
           ),
           // Notification
           InkWell(
-            onTap: onNotificationTap,
+            onTap: onNotificationTap ??
+                () => _infoSheet(context, Icons.notifications_none_rounded,
+                    'Notifikasi', 'Belum ada notifikasi baru.'),
             customBorder: const CircleBorder(),
             child: Container(
               width: 46,
@@ -101,7 +130,9 @@ class AppHeader extends StatelessWidget {
           const SizedBox(width: 8),
           // Avatar
           InkWell(
-            onTap: onAvatarTap,
+            onTap: onAvatarTap ??
+                () => _infoSheet(
+                    context, Icons.person_outline, title, subtitle),
             customBorder: const CircleBorder(),
             child: ClipOval(
               child: SizedBox(

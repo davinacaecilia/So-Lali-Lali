@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../partials/colors.dart';
 import '../partials/status_badge.dart';
+import '../purchase/buat_po.dart';
+import '../purchase/detail_po.dart' show DetailPoPage;
 
 enum RequestStage {
   menungguOwner,
@@ -165,9 +167,17 @@ class DetailRequestPage extends StatelessWidget {
   }
 
   void _onButtonTap(BuildContext context) {
-    // TODO FE:
-    // - poSelesai          -> buka halaman Detail Purchase Order
-    // - diprosesPurchasing -> buka halaman Buat PO
+    if (_stage == RequestStage.poSelesai) {
+      Navigator.push(
+          context, MaterialPageRoute(builder: (_) => const DetailPoPage()));
+    }
+    if (_stage == RequestStage.diprosesPurchasing) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => BuatPoPage.dariRequest(requestCode: code)),
+      );
+    }
   }
 
   @override

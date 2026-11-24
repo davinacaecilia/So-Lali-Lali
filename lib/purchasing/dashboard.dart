@@ -4,6 +4,14 @@ import 'partials/colors.dart';
 import 'partials/navbar.dart';
 import 'partials/header.dart';
 import 'partials/status_badge.dart';
+import 'opname/hasil_opname.dart' show HasilOpnamePage;
+import 'opname/opname_page.dart';
+import 'purchase/detail_po.dart' show DetailPoPage;
+import 'purchase/purchase_page.dart';
+import 'stok/stokpage.dart';
+import 'terima/terima_page.dart';
+import 'purchase/buat_po.dart';
+import 'stok/riwayat_restock.dart';
 
 // ============================ MODEL (DUMMY) ============================
 enum _ItemType { box, po, opname, terima }
@@ -105,11 +113,25 @@ class _QuickActions extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
-        _ActionButton(icon: Icons.add, label: 'Purchase\nOrder'),
+      children: [
         _ActionButton(
-            icon: Icons.inventory_2, label: 'Riwayat\nRestock'),
-        _ActionButton(icon: Icons.assignment_outlined, label: 'Opname\nHarian'),
+          icon: Icons.add,
+          label: 'Purchase\nOrder',
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const BuatPoPage.manual())),
+        ),
+        _ActionButton(
+          icon: Icons.inventory_2,
+          label: 'Riwayat\nRestock',
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const RiwayatRestockPage())),
+        ),
+        _ActionButton(
+          icon: Icons.assignment_outlined,
+          label: 'Opname\nHarian',
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const OpnamePage())),
+        ),
       ],
     );
   }
@@ -118,12 +140,17 @@ class _QuickActions extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
 
-  const _ActionButton({required this.icon, required this.label});
+  const _ActionButton(
+      {required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
       width: 80,
       child: Column(
         children: [
@@ -150,6 +177,7 @@ class _ActionButton extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -161,18 +189,26 @@ class _SummaryCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
+      children: [
         Expanded(
-          child: _SummaryCard(
-            value: '80',
-            label: 'Request Restock\nbelum di PO',
+          child: GestureDetector(
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const StokPage())),
+            child: const _SummaryCard(
+              value: '80',
+              label: 'Request Restock\nbelum di PO',
+            ),
           ),
         ),
-        SizedBox(width: 16),
+        const SizedBox(width: 16),
         Expanded(
-          child: _SummaryCard(
-            value: '80',
-            label: 'PO menunggu\nApproval Owner',
+          child: GestureDetector(
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const PurchasePage())),
+            child: const _SummaryCard(
+              value: '80',
+              label: 'PO menunggu\nApproval Owner',
+            ),
           ),
         ),
       ],
@@ -277,8 +313,33 @@ class _RestockRow extends StatelessWidget {
     }
   }
 
+  void _open(BuildContext context) {
+    final Widget page;
+    switch (item.type) {
+      case _ItemType.box:
+        page = const RiwayatRestockPage();
+        break;
+      case _ItemType.po:
+        page = const DetailPoPage();
+        break;
+      case _ItemType.opname:
+        page = HasilOpnamePage(waiting: item.status == AppStatus.menunggu);
+        break;
+      case _ItemType.terima:
+        page = const TerimaPage();
+        break;
+    }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _open(context),
+        child: _content(context),
+      );
+
+  Widget _content(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(

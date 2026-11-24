@@ -266,6 +266,22 @@ class _FilterRiwayatSheetState extends State<_FilterRiwayatSheet> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       initialDateRange: _range,
+      builder: (c, child) => Theme(
+        data: Theme.of(c).copyWith(
+          colorScheme: ColorScheme.light(
+            primary: const Color(0xFFE59E2C),
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            secondary: const Color(0xFFF3D58D),
+            onSecondary: AppColors.brownDark,
+            onSurface: AppColors.brownDark,
+          ),
+          datePickerTheme: const DatePickerThemeData(
+            rangeSelectionBackgroundColor: Color(0xFFF3D58D),
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (picked != null) setState(() => _range = picked);
   }

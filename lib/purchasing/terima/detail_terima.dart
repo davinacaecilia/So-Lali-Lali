@@ -246,6 +246,17 @@ class _InputItemPageState extends State<InputItemPage> {
       initialDate: _date,
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 3650)),
+      builder: (c, child) => Theme(
+        data: Theme.of(c).copyWith(
+          colorScheme: ColorScheme.light(
+            primary: const Color(0xFFE59E2C),
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: AppColors.brownDark,
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (r != null) setState(() => _date = r);
   }
