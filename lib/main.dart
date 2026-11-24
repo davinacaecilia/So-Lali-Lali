@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'owner/dashboard.dart';
+import 'kitchen/kitchen_screen.dart';
+import 'kasir/kasir_screen.dart';
+import 'owner/partials/colors.dart';
 
 import 'screen/splash.dart';
 import 'auth/login.dart';
@@ -18,11 +22,14 @@ class MyApp extends StatelessWidget {
       title: 'SO LALI-LALI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        fontFamily: kFont,
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF2F4366), // navy dari style guide
         ),
+        scaffoldBackgroundColor: AppColors.background,
         useMaterial3: true,
       ),
+      // home: const DashboardOwnerPage(),
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),
