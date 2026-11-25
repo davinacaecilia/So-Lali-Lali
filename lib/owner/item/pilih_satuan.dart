@@ -1,31 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../../constants/ingredient_options.dart';
 import '../partials/colors.dart';
 
-// =====================================================
-// DATA SATUAN
-// (nanti bisa diganti data dari backend/API)
-// =====================================================
-class _SatuanOption {
-  final String kode; // mis. "kg"
-  final String? nama; // mis. "Kilogram" (opsional)
-  const _SatuanOption(this.kode, [this.nama]);
-}
-
-const Map<String, List<_SatuanOption>> _kGrupSatuan = {
-  'BERAT': [_SatuanOption('kg', 'Kilogram'), _SatuanOption('g', 'Gram')],
-  'VOLUME': [_SatuanOption('liter', 'L'), _SatuanOption('ml', 'Mililiter')],
-  'HITUNGAN': [
-    _SatuanOption('butir'),
-    _SatuanOption('pcs'),
-    _SatuanOption('pack'),
-  ],
-};
+/// Urutan grup yang ditampilkan di sheet (daftar satuannya dari kUnits).
+const List<String> _kGrup = ['BERAT', 'VOLUME', 'HITUNGAN'];
 
 // =====================================================
 // FUNGSI PEMBUKA SHEET
-// Mengembalikan kode satuan terpilih (mis. "kg"),
+// Mengembalikan KUNCI satuan terpilih (mis. "kg", "l", "x:karung"),
 // atau null jika ditutup tanpa memilih.
+// [current] juga berupa kunci satuan.
 // =====================================================
 Future<String?> showPilihSatuanSheet(BuildContext context, {String? current}) {
   return showModalBottomSheet<String>(
@@ -58,8 +43,8 @@ class _PilihSatuanSheetState extends State<_PilihSatuanSheet> {
   static const Color _subText = AppColors.subtitle;
   static const Color _btn = AppColors.orangeAccent;
 
-  String? _selected;
-  final List<String> _custom = []; // satuan khusus buatan user
+  String? _selected; // kunci satuan
+  final List<String> _custom = []; // kunci satuan khusus ("x:...")
 
   @override
   void initState() {
@@ -68,12 +53,8 @@ class _PilihSatuanSheetState extends State<_PilihSatuanSheet> {
 
     // Jika satuan sebelumnya adalah satuan khusus, tampilkan lagi.
     final cur = widget.current;
-    if (cur != null && !_isDefault(cur)) _custom.add(cur);
+    if (cur != null && isCustomUnit(cur)) _custom.add(cur);
   }
-
-  bool _isDefault(String kode) => _kGrupSatuan.values.any(
-    (list) => list.any((o) => o.kode.toLowerCase() == kode.toLowerCase()),
-  );
 
   // ---------- Tambah satuan khusus ----------
   Future<void> _tambahKhusus() async {
@@ -96,13 +77,15 @@ class _PilihSatuanSheetState extends State<_PilihSatuanSheet> {
         content: TextField(
           controller: ctrl,
           autofocus: true,
+          maxLength: 15,
           style: const TextStyle(
             fontFamily: kFont,
             fontSize: 14,
             color: AppColors.textDark,
           ),
           decoration: InputDecoration(
-            hintText: 'Contoh: karung, botol, sachet',
+            counterText: '',
+            hintText: 'Contoh: karung, ikat, dus',
             hintStyle: const TextStyle(
               fontFamily: kFont,
               fontSize: 14,
@@ -144,24 +127,22 @@ class _PilihSatuanSheetState extends State<_PilihSatuanSheet> {
 
     if (!mounted || hasil == null || hasil.isEmpty) return;
 
-    // Cegah duplikat (abaikan huruf besar/kecil)
-    String? existing;
-    for (final list in _kGrupSatuan.values) {
-      for (final o in list) {
-        if (o.kode.toLowerCase() == hasil.toLowerCase()) existing = o.kode;
+    // Kalau ternyata sama dengan satuan bawaan (mis. "Liter", "gram"),
+    // pilih satuan bawaan itu, jangan dibuat ganda.
+    final lower = hasil.toLowerCase();
+    String? matchKey;
+    for (final u in kUnits) {
+      if (u.key == lower ||
+          u.label.toLowerCase() == lower ||
+          u.name?.toLowerCase() == lower) {
+        matchKey = u.key;
       }
-    }
-    for (final c in _custom) {
-      if (c.toLowerCase() == hasil.toLowerCase()) existing = c;
     }
 
+    final key = matchKey ?? customUnitKey(hasil);
     setState(() {
-      if (existing != null) {
-        _selected = existing;
-      } else {
-        _custom.add(hasil);
-        _selected = hasil;
-      }
+      if (matchKey == null && !_custom.contains(key)) _custom.add(key);
+      _selected = key;
     });
   }
 
@@ -223,17 +204,14 @@ class _PilihSatuanSheetState extends State<_PilihSatuanSheet> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
               children: [
-                ..._kGrupSatuan.entries.expand(
-                  (e) => _buildSection(
-                    e.key,
-                    e.value.map((o) => (o.kode, o.nama)).toList(),
+                ..._kGrup.expand(
+                      (g) => _buildSection(
+                    g,
+                    kUnits.where((u) => u.group == g).toList(),
                   ),
                 ),
                 if (_custom.isNotEmpty)
-                  ..._buildSection(
-                    'KUSTOM',
-                    _custom.map((c) => (c, null as String?)).toList(),
-                  ),
+                  ..._buildSection('KUSTOM', _custom.map(unitByKey).toList()),
               ],
             ),
           ),
@@ -298,7 +276,7 @@ class _PilihSatuanSheetState extends State<_PilihSatuanSheet> {
   }
 
   // ---------- Satu grup (judul + baris-baris) ----------
-  List<Widget> _buildSection(String title, List<(String, String?)> items) {
+  List<Widget> _buildSection(String title, List<UnitOption> items) {
     return [
       Padding(
         padding: const EdgeInsets.fromLTRB(4, 14, 0, 6),
@@ -313,16 +291,16 @@ class _PilihSatuanSheetState extends State<_PilihSatuanSheet> {
           ),
         ),
       ),
-      ...items.map((it) => _buildRow(it.$1, it.$2)),
+      ...items.map(_buildRow),
     ];
   }
 
   // ---------- Satu baris satuan ----------
-  Widget _buildRow(String kode, String? nama) {
-    final selected = _selected == kode;
+  Widget _buildRow(UnitOption u) {
+    final selected = _selected == u.key;
 
     return InkWell(
-      onTap: () => setState(() => _selected = kode),
+      onTap: () => setState(() => _selected = u.key),
       child: Container(
         height: 52,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -333,7 +311,7 @@ class _PilihSatuanSheetState extends State<_PilihSatuanSheet> {
         child: Row(
           children: [
             Text(
-              kode,
+              u.label,
               style: const TextStyle(
                 fontFamily: kFont,
                 fontSize: 15,
@@ -341,10 +319,10 @@ class _PilihSatuanSheetState extends State<_PilihSatuanSheet> {
                 color: AppColors.textDark,
               ),
             ),
-            if (nama != null) ...[
+            if (u.name != null) ...[
               const SizedBox(width: 8),
               Text(
-                '($nama)',
+                '(${u.name})',
                 style: const TextStyle(
                   fontFamily: kFont,
                   fontSize: 11.5,
@@ -371,15 +349,15 @@ class _PilihSatuanSheetState extends State<_PilihSatuanSheet> {
       ),
       child: selected
           ? Center(
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.textDark,
-                ),
-              ),
-            )
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.textDark,
+          ),
+        ),
+      )
           : null,
     );
   }
