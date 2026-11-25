@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/auth_service.dart';
 import 'auth_widgets.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -12,6 +13,28 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+
+  bool _loading = false;
+
+  Future<void> _kirimReset() async {
+    if (_loading) return;
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+    try {
+      final email = _emailController.text.trim();
+      await AuthService.instance.sendPasswordReset(email);
+      if (mounted) {
+        showAuthMessage(
+          context,
+          'Tautan reset password sudah dikirim. Cek inbox atau folder spam email $email.',
+        );
+      }
+    } on AuthException catch (e) {
+      if (mounted) showAuthMessage(context, e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -34,7 +57,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   const AuthLogoHeader(
                     title: 'Lupa Password?',
                     subtitle:
-                        'Masukkan email yang terdaftar untuk simulasi pengaturan ulang password.',
+                        'Masukkan email yang terdaftar untuk pengaturan ulang password.',
                     logoWidth: 180,
                   ),
                   const SizedBox(height: 30),
@@ -49,14 +72,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   const SizedBox(height: 68),
                   AuthPrimaryButton(
                     text: 'Kirim Tautan Reset',
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        showAuthMessage(
-                          context,
-                          'Simulasi berhasil: tautan reset akan dikirim ke ${_emailController.text.trim()}.',
-                        );
-                      }
-                    },
+                    onPressed: _kirimReset,
                   ),
                   const SizedBox(height: 10),
                   SizedBox(

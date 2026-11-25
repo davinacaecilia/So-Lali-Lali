@@ -148,6 +148,18 @@ class AuthService {
     return data['role'] as String;
   }
 
+  /// Kirim email berisi tautan reset password.
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      // Email yang tidak terdaftar sengaja diabaikan supaya orang lain
+      // tidak bisa menebak email siapa saja yang punya akun.
+      if (e.code == 'user-not-found') return;
+      throw AuthException(_firebaseMessage(e));
+    }
+  }
+
   Future<void> logout() async {
     await _auth.signOut();
     if (_googleReady) await GoogleSignIn.instance.signOut();
