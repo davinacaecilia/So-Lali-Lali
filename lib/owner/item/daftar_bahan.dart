@@ -1,29 +1,49 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../constants/ingredient_options.dart';
+import '../../models/ingredient.dart';
+import '../../services/ingredient_service.dart';
 import '../partials/colors.dart';
 import 'filter_bahan.dart';
 import 'informasi_bahan.dart';
 import 'tambah_bahan.dart';
 
 // =====================================================
-// MODEL + DATA DUMMY
+// MODEL TAMPILAN
 // =====================================================
 class BahanItem {
+  final String id;
   final String name;
-  final String category;
+  final String category; // label untuk tampilan
+  final String categoryKey; // kunci untuk filter
   final String quantity; // sudah termasuk satuan, mis. "16 kg"
   final StockStatus status;
   final IconData icon;
-  final DateTime? expiry; // tanggal kedaluwarsa (untuk urutan)
+  final DateTime? expiry; // kedaluwarsa terdekat (untuk urutan)
 
   const BahanItem({
+    this.id = '',
     required this.name,
     required this.category,
+    this.categoryKey = '',
     required this.quantity,
     required this.status,
     required this.icon,
     this.expiry,
   });
+
+  factory BahanItem.fromIngredient(Ingredient i) => BahanItem(
+    id: i.id,
+    name: i.name,
+    category: i.category.label,
+    categoryKey: i.categoryKey,
+    quantity: formatQty(i.totalStock, i.unit),
+    status: _statusOf(i),
+    icon: _iconFor(i.categoryKey),
+    expiry: i.nearestExpiry,
+  );
 
   /// Angka dari "12,5 kg" -> 12.5 (dipakai untuk urut "Stok Tersedikit")
   double get stock {
@@ -33,75 +53,57 @@ class BahanItem {
   }
 }
 
-/// Label kategori di filter -> nilai `category` pada BahanItem.
+StockStatus _statusOf(Ingredient i) {
+  if (i.totalStock <= 0) return StockStatus.habis;
+  if (i.totalStock < i.minStock) return StockStatus.menipis;
+  return StockStatus.aman;
+}
+
+IconData _iconFor(String categoryKey) {
+  switch (categoryKey) {
+    case 'bahan_kering':
+      return Icons.grain;
+    case 'susu_olahan':
+      return Icons.local_drink_outlined;
+    case 'daging_unggas':
+      return Icons.kebab_dining;
+    case 'seafood':
+      return Icons.set_meal_outlined;
+    case 'telur':
+      return Icons.egg_outlined;
+    case 'sayur_buah':
+      return Icons.eco_outlined;
+    case 'bumbu_rempah':
+      return Icons.spa_outlined;
+    case 'minyak_lemak':
+      return Icons.water_drop_outlined;
+    case 'minuman_sirup':
+      return Icons.coffee_outlined;
+    case 'bahan_beku':
+      return Icons.ac_unit;
+    default:
+      return Icons.category_outlined;
+  }
+}
+
+/// Label kategori di filter -> kunci kategori pada BahanItem.
 /// (Urutannya sama dengan urutan di sheet filter.)
 const Map<String, String> kKategoriFilter = {
-  'Bahan Kering': 'Bahan Kering',
-  'Minuman & Biji Kopi': 'Minuman',
-  'Susu & Olahan': 'Susu dan Olahan',
-  'Protein & Daging': 'Protein',
-  'Bumbu & Rempah': 'Bumbu & Rempah',
+  'Bahan Kering': 'bahan_kering',
+  'Minuman & Biji Kopi': 'minuman_sirup',
+  'Susu & Olahan': 'susu_olahan',
+  'Protein & Daging': 'daging_unggas',
+  'Bumbu & Rempah': 'bumbu_rempah',
 };
-
-final List<BahanItem> dummyBahan = [
-  BahanItem(
-    name: 'Tepung Terigu',
-    category: 'Bahan Kering',
-    quantity: '16 kg',
-    status: StockStatus.aman,
-    icon: Icons.bakery_dining_outlined,
-    expiry: DateTime(2027, 3, 10),
-  ),
-  BahanItem(
-    name: 'Gula Pasir',
-    category: 'Bahan Kering',
-    quantity: '12,5 kg',
-    status: StockStatus.aman,
-    icon: Icons.grain,
-    expiry: DateTime(2027, 6, 1),
-  ),
-  BahanItem(
-    name: 'Susu UHT Full Cream',
-    category: 'Minuman',
-    quantity: '6 liter',
-    status: StockStatus.menipis,
-    icon: Icons.local_drink_outlined,
-    expiry: DateTime(2026, 11, 20),
-  ),
-  BahanItem(
-    name: 'Biji Kopi Arabika',
-    category: 'Minuman',
-    quantity: '8 kg',
-    status: StockStatus.aman,
-    icon: Icons.coffee_outlined,
-    expiry: DateTime(2027, 2, 15),
-  ),
-  BahanItem(
-    name: 'Mentega',
-    category: 'Susu dan Olahan',
-    quantity: '2 kg',
-    status: StockStatus.menipis,
-    icon: Icons.layers_outlined,
-    expiry: DateTime(2026, 12, 5),
-  ),
-  BahanItem(
-    name: 'Fillet Ayam',
-    category: 'Protein',
-    quantity: '0 kg',
-    status: StockStatus.habis,
-    icon: Icons.kebab_dining,
-    expiry: DateTime(2026, 11, 14),
-  ),
-];
 
 /// Fungsi yang membuka sheet filter dan mengembalikan pilihan user
 /// (null jika ditutup tanpa menerapkan). Setiap "versi" halaman cukup
 /// memberi fungsi yang berbeda; tampilan halamannya tetap sama.
 typedef BahanFilterOpener =
-    Future<FilterBahan?> Function(
-      BuildContext context, {
-      required FilterBahan current,
-      required Map<String, int> counts,
+Future<FilterBahan?> Function(
+    BuildContext context, {
+    required FilterBahan current,
+    required Map<String, int> counts,
     });
 
 // =====================================================
@@ -130,13 +132,46 @@ class _DaftarBahanState extends State<DaftarBahan> {
   static const _cube = AppColors.cube;
 
   // ------------------------------------------------------------
-  // DATA. Untuk mencoba tampilan KOSONG, ganti dummyBahan dengan []
+  // DATA dari Firestore (realtime)
   // ------------------------------------------------------------
-  final List<BahanItem> _bahan = dummyBahan;
+  List<BahanItem> _bahan = [];
+  bool _loading = true;
+  String? _error;
+  StreamSubscription<List<Ingredient>>? _sub;
 
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
   FilterBahan _filter = const FilterBahan();
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = IngredientService.instance.watchAll().listen(
+          (list) {
+        if (!mounted) return;
+        setState(() {
+          _bahan = list.map(BahanItem.fromIngredient).toList();
+          _loading = false;
+          _error = null;
+        });
+      },
+      onError: (e) {
+        debugPrint('watchAll error: $e');
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Gagal memuat data bahan.';
+        });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   List<BahanItem> get _visible {
     final q = _query.trim().toLowerCase();
@@ -145,7 +180,7 @@ class _DaftarBahanState extends State<DaftarBahan> {
     final list = _bahan.where((e) {
       if (q.isNotEmpty && !e.name.toLowerCase().contains(q)) return false;
       if (_filter.category != FilterBahan.semuaKategori &&
-          e.category != match) {
+          e.categoryKey != match) {
         return false;
       }
       if (_filter.status != null && e.status != _filter.status) return false;
@@ -155,7 +190,7 @@ class _DaftarBahanState extends State<DaftarBahan> {
     switch (_filter.sort) {
       case BahanSort.nama:
         list.sort(
-          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+              (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
         break;
       case BahanSort.stokTersedikit:
@@ -177,7 +212,7 @@ class _DaftarBahanState extends State<DaftarBahan> {
   Map<String, int> _categoryCounts() {
     final counts = <String, int>{FilterBahan.semuaKategori: _bahan.length};
     kKategoriFilter.forEach((label, match) {
-      counts[label] = _bahan.where((e) => e.category == match).length;
+      counts[label] = _bahan.where((e) => e.categoryKey == match).length;
     });
     return counts;
   }
@@ -196,12 +231,6 @@ class _DaftarBahanState extends State<DaftarBahan> {
       context,
       MaterialPageRoute(builder: (_) => const TambahBahanBaruPage()),
     );
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
   }
 
   @override
@@ -227,8 +256,26 @@ class _DaftarBahanState extends State<DaftarBahan> {
     );
   }
 
-  // ---------- Pilih tampilan: kosong / tidak ketemu / daftar ----------
+  // ---------- Pilih tampilan: memuat / error / kosong / tidak ketemu / daftar ----------
   Widget _buildBody(List<BahanItem> items) {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 60),
+        child: CircularProgressIndicator(color: _orange),
+      );
+    }
+
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 32),
+        child: _buildEmptyState(
+          icon: Icons.error_outline,
+          title: 'Gagal memuat',
+          subtitle: _error!,
+        ),
+      );
+    }
+
     // 1) Data memang belum ada
     if (_bahan.isEmpty) {
       return Padding(

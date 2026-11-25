@@ -1,8 +1,14 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../constants/ingredient_options.dart';
 import '../partials/colors.dart';
 import 'pilih_satuan.dart';
 import 'tambah_bahan(2).dart';
+
+enum _FotoAksi { kamera, galeri, hapus }
 
 class TambahBahanBaruPage extends StatefulWidget {
   const TambahBahanBaruPage({super.key});
@@ -21,53 +27,143 @@ class _TambahBahanBaruPageState extends State<TambahBahanBaruPage> {
   static const Color _footerText = AppColors.optionalText;
   static const Color _fotoHint = AppColors.photoHint;
 
+  static const int _maxFotoBytes = 5 * 1024 * 1024; // 5 MB
+
   // ---------- State ----------
   final TextEditingController _namaController = TextEditingController();
-  final TextEditingController _kategoriBaruController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
 
-  bool _kategoriBaru = false; // false = pilih yang sudah ada, true = ketik baru
-  String? _kategori;
-  String? _satuan;
+  String? _kategori; // kunci kategori, mis. 'bahan_kering'
+  String? _unitKey; // kunci satuan, mis. 'kg' (dari sheet)
+  File? _foto; // foto terpilih (belum diunggah; dipakai di Tahap 2B/2C)
 
-  // Data contoh (nanti diganti data dari backend/API)
-  final List<String> _kategoriList = const [
-    'Bahan Kering',
-    'Minuman & Biji Kopi',
-    'Susu & Olahan',
-    'Protein & Daging',
-    'Bumbu & Rempah',
-  ];
-
-  /// Nilai kategori final yang akan disimpan, apapun modenya.
-  String? get kategoriTerpilih {
-    if (_kategoriBaru) {
-      final v = _kategoriBaruController.text.trim();
-      return v.isEmpty ? null : v;
-    }
-    return _kategori;
-  }
+  UnitOption? get _unit => _unitKey == null ? null : unitByKey(_unitKey!);
 
   @override
   void dispose() {
     _namaController.dispose();
-    _kategoriBaruController.dispose();
     super.dispose();
   }
 
   Future<void> _pilihSatuan() async {
-    final hasil = await showPilihSatuanSheet(context, current: _satuan);
-    if (hasil != null) setState(() => _satuan = hasil);
+    final hasil = await showPilihSatuanSheet(context, current: _unitKey);
+    if (hasil != null) setState(() => _unitKey = hasil);
+  }
+
+  // ---------- Foto ----------
+  Future<void> _pilihFoto() async {
+    final aksi = await showModalBottomSheet<_FotoAksi>(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.brown.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: AppColors.brownDark,
+              ),
+              title: const Text(
+                'Ambil foto',
+                style: TextStyle(fontFamily: kFont, fontSize: 15),
+              ),
+              onTap: () => Navigator.pop(ctx, _FotoAksi.kamera),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: AppColors.brownDark,
+              ),
+              title: const Text(
+                'Pilih dari galeri',
+                style: TextStyle(fontFamily: kFont, fontSize: 15),
+              ),
+              onTap: () => Navigator.pop(ctx, _FotoAksi.galeri),
+            ),
+            if (_foto != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: AppColors.red),
+                title: const Text(
+                  'Hapus foto',
+                  style: TextStyle(
+                    fontFamily: kFont,
+                    fontSize: 15,
+                    color: AppColors.red,
+                  ),
+                ),
+                onTap: () => Navigator.pop(ctx, _FotoAksi.hapus),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    switch (aksi) {
+      case _FotoAksi.kamera:
+        await _ambilFoto(ImageSource.camera);
+        break;
+      case _FotoAksi.galeri:
+        await _ambilFoto(ImageSource.gallery);
+        break;
+      case _FotoAksi.hapus:
+        setState(() => _foto = null);
+        break;
+      case null:
+        break; // menu ditutup tanpa memilih
+    }
+  }
+
+  Future<void> _ambilFoto(ImageSource sumber) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: sumber,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 80,
+      );
+      if (picked == null) return; // dibatalkan user
+
+      final file = File(picked.path);
+      if (await file.length() > _maxFotoBytes) {
+        _pesan('Ukuran foto melebihi 5 MB');
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _foto = file);
+    } catch (e) {
+      debugPrint('pickImage error: $e');
+      _pesan('Tidak dapat mengakses kamera atau galeri');
+    }
+  }
+
+  void _pesan(String teks) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(teks)),
+    );
   }
 
   void _onBerikutnya() {
     final nama = _namaController.text.trim();
-    final kategori = kategoriTerpilih;
 
     // Validasi sisi UI: field wajib harus terisi
-    if (nama.isEmpty || kategori == null || _satuan == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lengkapi nama, kategori, dan satuan')),
-      );
+    if (nama.isEmpty || _kategori == null || _unitKey == null) {
+      _pesan('Lengkapi nama, kategori, dan satuan');
       return;
     }
 
@@ -76,8 +172,9 @@ class _TambahBahanBaruPageState extends State<TambahBahanBaruPage> {
       MaterialPageRoute(
         builder: (_) => TambahBahanLangkah2Page(
           nama: nama,
-          kategori: kategori,
-          satuan: _satuan!,
+          categoryKey: _kategori!,
+          unitKey: _unitKey!,
+          foto: _foto,
         ),
       ),
     );
@@ -114,20 +211,12 @@ class _TambahBahanBaruPageState extends State<TambahBahanBaruPage> {
                   // ----- Kategori Bahan -----
                   _buildLabelRow('Kategori Bahan', required: true),
                   const SizedBox(height: 10),
-                  _buildKategoriModeRow(),
-                  const SizedBox(height: 10),
-                  if (_kategoriBaru)
-                    _buildTextField(
-                      controller: _kategoriBaruController,
-                      hint: 'Tulis nama kategori baru',
-                    )
-                  else
-                    _buildDropdown(
-                      hint: 'Pilih kategori',
-                      value: _kategori,
-                      items: _kategoriList,
-                      onChanged: (v) => setState(() => _kategori = v),
-                    ),
+                  _buildDropdown(
+                    hint: 'Pilih kategori',
+                    value: _kategori,
+                    items: kCategories,
+                    onChanged: (v) => setState(() => _kategori = v),
+                  ),
                   const SizedBox(height: 20),
 
                   // ----- Satuan -----
@@ -286,75 +375,7 @@ class _TambahBahanBaruPageState extends State<TambahBahanBaruPage> {
   }
 
   // ======================================================
-  // PILIHAN MODE KATEGORI (radio)
-  // ======================================================
-  Widget _buildKategoriModeRow() {
-    return Row(
-      children: [
-        _buildRadioOption(
-          label: 'Kategori yang Sudah Ada',
-          selected: !_kategoriBaru,
-          onTap: () => setState(() => _kategoriBaru = false),
-        ),
-        const SizedBox(width: 36),
-        _buildRadioOption(
-          label: 'Kategori Baru',
-          selected: _kategoriBaru,
-          onTap: () => setState(() => _kategoriBaru = true),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRadioOption({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: selected ? AppColors.orange : AppColors.background,
-              border: Border.all(color: AppColors.orange, width: 1.5),
-            ),
-            child: selected
-                ? Center(
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.brownDark,
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontFamily: kFont,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AppColors.brownDark,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ======================================================
-  // TEXT FIELD (dipakai Nama Bahan & Kategori Baru)
+  // TEXT FIELD (Nama Bahan)
   // ======================================================
   Widget _buildTextField({
     required TextEditingController controller,
@@ -394,12 +415,12 @@ class _TambahBahanBaruPageState extends State<TambahBahanBaruPage> {
   }
 
   // ======================================================
-  // DROPDOWN (Kategori yang sudah ada)
+  // DROPDOWN KATEGORI
   // ======================================================
   Widget _buildDropdown({
     required String hint,
     required String? value,
-    required List<String> items,
+    required List<CategoryOption> items,
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
@@ -433,7 +454,12 @@ class _TambahBahanBaruPageState extends State<TambahBahanBaruPage> {
             color: AppColors.textDark,
           ),
           items: items
-              .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
+              .map(
+                (e) => DropdownMenuItem<String>(
+              value: e.key,
+              child: Text(e.label),
+            ),
+          )
               .toList(),
           onChanged: onChanged,
         ),
@@ -459,11 +485,11 @@ class _TambahBahanBaruPageState extends State<TambahBahanBaruPage> {
           children: [
             Expanded(
               child: Text(
-                _satuan ?? 'Pilih satuan (kg, liter, butir, pcs)',
+                _unit?.label ?? 'Pilih satuan (kg, liter, butir, pcs)',
                 style: TextStyle(
                   fontFamily: kFont,
                   fontSize: 14,
-                  color: _satuan == null ? _hintColor : AppColors.textDark,
+                  color: _unit == null ? _hintColor : AppColors.textDark,
                 ),
               ),
             ),
@@ -479,59 +505,88 @@ class _TambahBahanBaruPageState extends State<TambahBahanBaruPage> {
   }
 
   // ======================================================
-  // FOTO
+  // FOTO (kosong = kotak ajakan, terisi = pratinjau)
   // ======================================================
   Widget _buildFotoBox() {
     return GestureDetector(
-      onTap: () {
-        // TODO: ambil foto / pilih dari galeri
-      },
+      onTap: _pilihFoto,
       child: Container(
         width: double.infinity,
         height: 156,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: AppColors.background,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.brown, width: 1),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.iconBox,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.photo_camera_outlined,
-                color: AppColors.brownDark,
-                size: 24,
-              ),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Ambil foto atau pilih dari galeri',
-              style: TextStyle(
-                fontFamily: kFont,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textDark,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Maks. 5 MB',
-              style: TextStyle(
-                fontFamily: kFont,
-                fontSize: 12.5,
-                color: _fotoHint,
-              ),
-            ),
-          ],
-        ),
+        child: _foto == null ? _buildFotoKosong() : _buildFotoPratinjau(),
       ),
+    );
+  }
+
+  Widget _buildFotoKosong() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppColors.iconBox,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.photo_camera_outlined,
+            color: AppColors.brownDark,
+            size: 24,
+          ),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'Ambil foto atau pilih dari galeri',
+          style: TextStyle(
+            fontFamily: kFont,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDark,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Maks. 5 MB',
+          style: TextStyle(
+            fontFamily: kFont,
+            fontSize: 12.5,
+            color: _fotoHint,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFotoPratinjau() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.file(_foto!, fit: BoxFit.cover),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.edit_outlined,
+              size: 18,
+              color: AppColors.brownDark,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

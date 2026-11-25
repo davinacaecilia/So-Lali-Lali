@@ -1,20 +1,27 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../services/cloudinary_service.dart';
+
+import '../../constants/ingredient_options.dart';
+import '../../services/ingredient_service.dart';
 import '../partials/colors.dart';
 
 /// Langkah 2 dari 2: Pengaturan Stok.
 /// Data langkah 1 (nama, kategori, satuan) dikirim lewat constructor.
 class TambahBahanLangkah2Page extends StatefulWidget {
   final String nama;
-  final String kategori;
-  final String satuan; // mis. "kg" -> ditampilkan terkunci di kotak satuan
+  final String categoryKey;
+  final String unitKey; // mis. "kg" -> ditampilkan terkunci di kotak satuan
+  final File? foto; // foto dari langkah 1 (opsional)
 
   const TambahBahanLangkah2Page({
     super.key,
     required this.nama,
-    required this.kategori,
-    required this.satuan,
+    required this.categoryKey,
+    required this.unitKey,
+    this.foto,
   });
 
   @override
@@ -30,31 +37,84 @@ class _TambahBahanLangkah2PageState extends State<TambahBahanLangkah2Page> {
   // ---------- State ----------
   final TextEditingController _parController = TextEditingController();
   final TextEditingController _expiryController = TextEditingController();
-  final TextEditingController _hargaController = TextEditingController();
   final TextEditingController _stokController = TextEditingController();
 
   String _expiryUnit = 'hari';
   final List<String> _expiryUnits = const ['hari', 'minggu', 'bulan'];
 
+  bool _saving = false;
+
+  UnitOption get _unit => unitByKey(widget.unitKey);
+
   @override
   void dispose() {
     _parController.dispose();
     _expiryController.dispose();
-    _hargaController.dispose();
     _stokController.dispose();
     super.dispose();
   }
 
-  // /// "12,5" -> 12.5
-  // double? _toNumber(String s) => double.tryParse(s.trim().replaceAll(',', '.'));
+  /// "12,5" -> 12.5
+  double? _toNumber(String s) => double.tryParse(s.trim().replaceAll(',', '.'));
 
-  void _onTambah() {
-    // TODO: kirim ke API, lalu tampilkan toast saat sukses.
-    _showSuccessToast();
+  Future<void> _onTambah() async {
+    if (_saving) return;
 
-    // Kembali ke halaman daftar (menutup langkah 2 dan langkah 1)
-    int count = 0;
-    Navigator.popUntil(context, (_) => count++ >= 2);
+    final par = _toNumber(_parController.text);
+    final masaSimpan = int.tryParse(_expiryController.text.trim());
+    final stokText = _stokController.text.trim();
+    final stok = stokText.isEmpty ? 0.0 : _toNumber(stokText);
+
+    String? error;
+    if (par == null || par <= 0) {
+      error = 'Isi batas minimal dengan angka lebih dari 0';
+    } else if (masaSimpan == null || masaSimpan <= 0) {
+      error = 'Isi batas kadaluwarsa dengan angka lebih dari 0';
+    } else if (stok == null || stok < 0) {
+      error = 'Stok awal tidak valid';
+    }
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      // 1) unggah foto (kalau ada) -> dapat link
+      String? photoUrl;
+      if (widget.foto != null) {
+        photoUrl = await CloudinaryService.instance.uploadImage(widget.foto!);
+      }
+
+      // 2) simpan bahan (beserta link foto) ke Firestore
+      await IngredientService.instance.addIngredient(
+        name: widget.nama,
+        categoryKey: widget.categoryKey,
+        unitKey: widget.unitKey,
+        minStock: par!,
+        shelfLifeValue: masaSimpan!,
+        shelfLifeUnit: _expiryUnit,
+        initialStock: stok!,
+        photoUrl: photoUrl,
+      );
+      if (!mounted) return;
+
+      _showSuccessToast();
+
+      // Kembali ke halaman daftar (menutup langkah 2 dan langkah 1)
+      int count = 0;
+      Navigator.popUntil(context, (_) => count++ >= 2);
+    } on ServiceException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   void _showSuccessToast() {
@@ -143,7 +203,7 @@ class _TambahBahanLangkah2PageState extends State<TambahBahanLangkah2Page> {
                         decimal: true,
                       ),
                     ),
-                    unit: _buildLockedUnit(widget.satuan),
+                    unit: _buildLockedUnit(_unit.label),
                   ),
                   _buildHelper(
                     'Notifikasi stok menipis muncul saat stok di bawah angka ini.',
@@ -176,9 +236,11 @@ class _TambahBahanLangkah2PageState extends State<TambahBahanLangkah2Page> {
                         decimal: true,
                       ),
                     ),
-                    unit: _buildLockedUnit(widget.satuan),
+                    unit: _buildLockedUnit(_unit.label),
                   ),
-                  _buildHelper('Kosongkan jika belum ada stok.'),
+                  _buildHelper(
+                    'Kosongkan jika belum ada stok. Kedaluwarsa stok awal dihitung dari hari ini + masa simpan.',
+                  ),
                 ],
               ),
             ),
@@ -191,7 +253,7 @@ class _TambahBahanLangkah2PageState extends State<TambahBahanLangkah2Page> {
 
   // Hanya angka, koma, dan titik
   static final TextInputFormatter _decimalOnly =
-      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'));
+  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'));
 
   // ======================================================
   // HEADER
@@ -357,17 +419,17 @@ class _TambahBahanLangkah2PageState extends State<TambahBahanLangkah2Page> {
           prefixIcon: prefix == null
               ? null
               : Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 12),
-                  child: Text(
-                    prefix,
-                    style: const TextStyle(
-                      fontFamily: kFont,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.brownDark,
-                    ),
-                  ),
-                ),
+            padding: const EdgeInsets.only(left: 16, right: 12),
+            child: Text(
+              prefix,
+              style: const TextStyle(
+                fontFamily: kFont,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.brownDark,
+              ),
+            ),
+          ),
           prefixIconConstraints: const BoxConstraints(
             minWidth: 0,
             minHeight: 0,
@@ -485,15 +547,25 @@ class _TambahBahanLangkah2PageState extends State<TambahBahanLangkah2Page> {
           width: double.infinity,
           height: 58,
           child: ElevatedButton(
-            onPressed: _onTambah,
+            onPressed: _saving ? null : _onTambah,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.orange,
+              disabledBackgroundColor: AppColors.orange.withOpacity(0.6),
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            child: const Text(
+            child: _saving
+                ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.white,
+              ),
+            )
+                : const Text(
               'Tambahkan Bahan',
               style: TextStyle(
                 fontFamily: kFont,
