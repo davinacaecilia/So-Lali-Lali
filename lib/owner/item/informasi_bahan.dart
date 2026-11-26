@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../constants/ingredient_options.dart' show cloudinaryResize;
 import '../partials/colors.dart';
-import 'filter_bahan.dart';
 import 'edit_bahan.dart';
+import 'filter_bahan.dart';
 import 'tambah_bahan.dart';
 
 // =====================================================
@@ -61,6 +62,7 @@ class InformasiBahanPage extends StatelessWidget {
   final int expiryLimitDays; // batas kadaluwarsa (hari)
   final StockStatus status;
   final IconData icon; // dipakai kalau gambar tidak ada
+  final String? imageUrl; // link foto dari Cloudinary
   final String? imageAsset;
   final List<BatchItem>? batches;
 
@@ -77,6 +79,7 @@ class InformasiBahanPage extends StatelessWidget {
     this.expiryLimitDays = 180,
     this.status = StockStatus.aman,
     this.icon = Icons.inventory_2_outlined,
+    this.imageUrl,
     this.imageAsset,
     this.batches,
     this.warningDays = 30,
@@ -259,10 +262,30 @@ class InformasiBahanPage extends StatelessWidget {
         break;
     }
 
+    // Placeholder (dipakai kalau foto tidak ada / gagal dimuat)
     final fallback = Container(
       color: AppColors.iconBox,
       child: Icon(icon, size: 56, color: AppColors.brown),
     );
+
+    // Urutan: foto dari jaringan -> aset -> placeholder
+    Widget photo = fallback;
+    final url = imageUrl;
+    if (url != null && url.isNotEmpty) {
+      photo = Image.network(
+        cloudinaryResize(url, width: 900),
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) =>
+        progress == null ? child : fallback,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    } else if (imageAsset != null) {
+      photo = Image.asset(
+        imageAsset!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
@@ -272,14 +295,7 @@ class InformasiBahanPage extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (imageAsset != null)
-              Image.asset(
-                imageAsset!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => fallback,
-              )
-            else
-              fallback,
+            photo,
             Positioned(
               top: 8,
               right: 6,
@@ -430,39 +446,39 @@ class InformasiBahanPage extends StatelessWidget {
 
   // ================= PERSEDIAAN =================
   Widget _buildPersediaanHeader(BuildContext context) {
-  return Column(
-    children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _sectionTitle('Persediaan'),
-          Material(
-            color: AppColors.orange,
-            borderRadius: BorderRadius.circular(8),
-            child: InkWell(
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _sectionTitle('Persediaan'),
+            Material(
+              color: AppColors.orange,
               borderRadius: BorderRadius.circular(8),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const TambahBahanBaruPage(),
-                  ),
-                );
-              },
-              child: const SizedBox(
-                width: 42,
-                height: 42,
-                child: Icon(Icons.add, color: Colors.white, size: 22),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TambahBahanBaruPage(),
+                    ),
+                  );
+                },
+                child: const SizedBox(
+                  width: 42,
+                  height: 42,
+                  child: Icon(Icons.add, color: Colors.white, size: 22),
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 6),
-      Container(height: 1, color: _C.divider),
-    ],
-  );
-}
+          ],
+        ),
+        const SizedBox(height: 6),
+        Container(height: 1, color: _C.divider),
+      ],
+    );
+  }
 
   Widget _buildSummary(List<BatchItem> list) {
     final total = list.fold<double>(0, (sum, b) => sum + b.stock);

@@ -143,3 +143,19 @@ const _bulanId = [
 /// 28 November 2026
 String formatDateId(DateTime d) =>
     '${d.day} ${_bulanId[d.month - 1]} ${d.year}';
+
+// =====================================================
+// FOTO (Cloudinary)
+// =====================================================
+/// Minta Cloudinary mengecilkan foto lewat URL (hemat kuota dan lebih cepat).
+/// Jika [height] diisi, foto dipotong kotak (c_fill); jika tidak, hanya
+/// dibatasi lebarnya. URL non-Cloudinary dikembalikan apa adanya.
+String cloudinaryResize(String url, {required int width, int? height}) {
+  const marker = '/image/upload/';
+  if (!url.contains('res.cloudinary.com') || !url.contains(marker)) return url;
+
+  final transform = height != null
+      ? 'c_fill,w_$width,h_$height,q_auto'
+      : 'c_limit,w_$width,q_auto';
+  return url.replaceFirst(marker, '$marker$transform/');
+}

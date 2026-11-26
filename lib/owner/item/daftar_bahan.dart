@@ -21,6 +21,7 @@ class BahanItem {
   final String quantity; // sudah termasuk satuan, mis. "16 kg"
   final StockStatus status;
   final IconData icon;
+  final String? photoUrl; // link foto (opsional)
   final DateTime? expiry; // kedaluwarsa terdekat (untuk urutan)
 
   const BahanItem({
@@ -31,6 +32,7 @@ class BahanItem {
     required this.quantity,
     required this.status,
     required this.icon,
+    this.photoUrl,
     this.expiry,
   });
 
@@ -42,6 +44,7 @@ class BahanItem {
     quantity: formatQty(i.totalStock, i.unit),
     status: _statusOf(i),
     icon: _iconFor(i.categoryKey),
+    photoUrl: i.photoUrl,
     expiry: i.nearestExpiry,
   );
 
@@ -86,15 +89,6 @@ IconData _iconFor(String categoryKey) {
   }
 }
 
-/// Label kategori di filter -> kunci kategori pada BahanItem.
-/// (Urutannya sama dengan urutan di sheet filter.)
-const Map<String, String> kKategoriFilter = {
-  'Bahan Kering': 'bahan_kering',
-  'Minuman & Biji Kopi': 'minuman_sirup',
-  'Susu & Olahan': 'susu_olahan',
-  'Protein & Daging': 'daging_unggas',
-  'Bumbu & Rempah': 'bumbu_rempah',
-};
 
 /// Fungsi yang membuka sheet filter dan mengembalikan pilihan user
 /// (null jika ditutup tanpa menerapkan). Setiap "versi" halaman cukup
@@ -175,12 +169,11 @@ class _DaftarBahanState extends State<DaftarBahan> {
 
   List<BahanItem> get _visible {
     final q = _query.trim().toLowerCase();
-    final match = kKategoriFilter[_filter.category];
 
     final list = _bahan.where((e) {
       if (q.isNotEmpty && !e.name.toLowerCase().contains(q)) return false;
       if (_filter.category != FilterBahan.semuaKategori &&
-          e.categoryKey != match) {
+          e.categoryKey != _filter.category) {
         return false;
       }
       if (_filter.status != null && e.status != _filter.status) return false;
@@ -208,12 +201,14 @@ class _DaftarBahanState extends State<DaftarBahan> {
     return list;
   }
 
-  /// Jumlah item per kategori untuk ditampilkan di sheet filter.
+  /// Jumlah bahan per kategori untuk sheet filter (key = kunci kategori).
+  /// Hanya kategori yang punya bahan (atau sedang dipilih) yang ditampilkan.
   Map<String, int> _categoryCounts() {
     final counts = <String, int>{FilterBahan.semuaKategori: _bahan.length};
-    kKategoriFilter.forEach((label, match) {
-      counts[label] = _bahan.where((e) => e.categoryKey == match).length;
-    });
+    for (final c in kCategories) {
+      final n = _bahan.where((e) => e.categoryKey == c.key).length;
+      if (n > 0 || _filter.category == c.key) counts[c.key] = n;
+    }
     return counts;
   }
 
@@ -463,6 +458,21 @@ class _BahanTile extends StatelessWidget {
   static const _subtitle = AppColors.lightSubtitle;
   static const _warnText = AppColors.warningStatusText;
 
+  /// Foto bahan; kalau tidak ada / gagal dimuat, tampilkan ikon kategori.
+  Widget _buildThumb() {
+    final placeholder = Icon(item.icon, size: 28, color: AppColors.brown);
+    final url = item.photoUrl;
+    if (url == null || url.isEmpty) return placeholder;
+
+    return Image.network(
+      cloudinaryResize(url, width: 160, height: 160),
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, progress) =>
+      progress == null ? child : placeholder,
+      errorBuilder: (_, __, ___) => placeholder,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final style = _statusStyle(item.status);
@@ -480,6 +490,7 @@ class _BahanTile extends StatelessWidget {
                 category: item.category,
                 status: item.status,
                 icon: item.icon,
+                imageUrl: item.photoUrl,
                 unit: item.quantity.split(' ').skip(1).join(' '),
               ),
             ),
@@ -488,15 +499,16 @@ class _BahanTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Ikon bahan
+            // Foto / ikon bahan
             Container(
               width: 63,
               height: 63,
+              clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: _peach,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(item.icon, size: 28, color: AppColors.brown),
+              child: _buildThumb(),
             ),
             const SizedBox(width: 15),
             // Nama + kategori
