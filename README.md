@@ -14,11 +14,10 @@ SO LALI-LALI (Supply Organizer, Laporan & Inventory) adalah aplikasi manajemen d
 | 6 | **Stock Opname & Variance** | Audit fisik stok di gudang/dapur untuk dicocokkan dengan data sistem guna mendeteksi selisih (variance). | 
 | 7 | **Notifikasi & Alert** | Memberikan push notification untuk kondisi low stock, restock, dan peringatan expiry. | 
 | 8 | **Stock Movement History** | Menampilkan riwayat seluruh perubahan stok, baik masuk maupun keluar. |
-| 9 | **Report** | Menyediakan laporan untuk analisis dan evaluasi operasional. | 
 
 ## User Level
 
-- **Owner** - Owner memiliki kewenangan tertinggi terhadap pengelolaan aplikasi, akses atas laporan legkap (variance, waste, pembelian, dan lainnya), manajemen Staff, dan pengaturan sistem lainnya.
+- **Owner** - Owner memiliki kewenangan tertinggi terhadap pengelolaan aplikasi, akses atas riwayat legkap (variance, waste, pembelian, dan lainnya), manajemen Staff, dan pengaturan sistem lainnya.
 - **Staff Gudang/Purchasing** - Staff Gudang bertanggungjawab melakukan purchase order (PO), receiving (menerima) barang dan menginput detail keterangan yang diperlukan, serta melakukan stock opname.
 - **Staff Dapur/Kitchen Staff** - Staff Dapur dapat melihat ketersediaan stock dan resep menu, menginput data waste, melakukan opname harian, dan request stock.
 - **Kasir/Cashier** - Kasir bertugas menginput transaksi penjualan.
