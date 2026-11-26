@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../constants/ingredient_options.dart' show categoryByKey;
 import '../partials/colors.dart';
 
 // =====================================================
@@ -11,8 +12,10 @@ enum StockStatus { aman, menipis, habis }
 enum BahanSort { nama, stokTersedikit, kedaluwarsa }
 
 class FilterBahan {
-  static const semuaKategori = 'Semua Kategori';
+  /// Nilai khusus untuk "tanpa filter kategori".
+  static const semuaKategori = 'semua';
 
+  /// Kunci kategori (mis. "bahan_kering"), atau [semuaKategori].
   final String category;
   final StockStatus? status; // null = Semua
   final BahanSort sort;
@@ -30,13 +33,13 @@ class FilterBahan {
 /// Membuka sheet filter. Mengembalikan [FilterBahan] jika user menekan
 /// "Terapkan Filter", atau null jika sheet ditutup tanpa menerapkan.
 ///
-/// [counts] = jumlah item per kategori (key = label kategori, termasuk
-/// "Semua Kategori"). Urutan key menentukan urutan baris di sheet.
+/// [counts] = jumlah bahan per kategori (key = KUNCI kategori, termasuk
+/// [FilterBahan.semuaKategori]). Urutan key menentukan urutan baris di sheet.
 Future<FilterBahan?> showFilterBahanSheet(
-  BuildContext context, {
-  required FilterBahan current,
-  required Map<String, int> counts,
-}) {
+    BuildContext context, {
+      required FilterBahan current,
+      required Map<String, int> counts,
+    }) {
   return showModalBottomSheet<FilterBahan>(
     context: context,
     isScrollControlled: true,
@@ -90,6 +93,11 @@ class _FilterBahanSheetState extends State<FilterBahanSheet> {
     _sort = widget.initial.sort;
   }
 
+  /// Label tampilan untuk kunci kategori.
+  String _categoryLabel(String key) => key == FilterBahan.semuaKategori
+      ? 'Semua Kategori'
+      : categoryByKey(key).label;
+
   void _reset() {
     setState(() {
       _category = FilterBahan.semuaKategori;
@@ -130,7 +138,7 @@ class _FilterBahanSheetState extends State<FilterBahanSheet> {
               children: [
                 ...widget.counts.entries.map(_categoryRow),
                 const SizedBox(height: 14),
-                _sectionLabel('Status Food Cost'),
+                _sectionLabel('Status Stok'),
                 const SizedBox(height: 8),
                 _buildStatusChips(),
                 const SizedBox(height: 18),
@@ -222,19 +230,19 @@ class _FilterBahanSheetState extends State<FilterBahanSheet> {
               ),
               child: selected
                   ? Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.deepBrown,
-                      ),
-                    )
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.deepBrown,
+                ),
+              )
                   : null,
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                e.key,
+                _categoryLabel(e.key),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -251,7 +259,7 @@ class _FilterBahanSheetState extends State<FilterBahanSheet> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                '${e.value} menu',
+                '${e.value} bahan',
                 style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
