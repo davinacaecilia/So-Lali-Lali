@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../constants/menu_options.dart';
 import '../partials/colors.dart';
 
 // =====================================================
-// MODEL FILTER
+// KOMPATIBILITAS (food cost sudah dihapus dari aplikasi)
+// Dibiarkan karena halaman edit mungkin masih memakainya.
+// Hapus setelah halaman edit dibersihkan.
 // =====================================================
-
-/// Status food cost. Batasnya mengikuti desain:
-///   Aman    : <= 30%
-///   Waspada : 30 - 35%
-///   Kritis  : > 35%
 enum FoodCostStatus { aman, waspada, kritis }
 
 const double kFoodCostAman = 30;
@@ -21,26 +19,25 @@ FoodCostStatus foodCostStatusOf(double foodCost) {
   return FoodCostStatus.kritis;
 }
 
-/// Label kategori di sheet filter -> nilai `category` pada MenuModel.
-/// (Urutannya sama dengan urutan di sheet.)
-const Map<String, String> kKategoriMenuFilter = {
-  'Makanan Utama': 'Makanan Utama',
-  'Minuman Kopi': 'Minuman Kopi',
-  'Minuman Non-Kopi': 'Minuman Non-Kopi',
-  'Camilan & Penutup': 'Camilan & Penutup',
+/// (Kompatibilitas) label kategori -> label kategori, diturunkan dari
+/// [kMenuCategories]. Dipertahankan kalau ada halaman lain yang memakainya.
+final Map<String, String> kKategoriMenuFilter = {
+  for (final c in kMenuCategories) c.label: c.label,
 };
 
+// =====================================================
+// MODEL FILTER
+// =====================================================
 class FilterMenu {
-  static const semuaKategori = 'Semua Kategori';
+  /// Nilai khusus untuk "tanpa filter kategori".
+  static const semuaKategori = 'semua';
 
+  /// Kunci kategori (mis. "minuman_kopi"), atau [semuaKategori].
   final String category;
 
-  /// null = "Semua" status food cost
-  final FoodCostStatus? foodCost;
+  const FilterMenu({this.category = semuaKategori});
 
-  const FilterMenu({this.category = semuaKategori, this.foodCost});
-
-  bool get isDefault => category == semuaKategori && foodCost == null;
+  bool get isDefault => category == semuaKategori;
 }
 
 // =====================================================
@@ -49,11 +46,14 @@ class FilterMenu {
 
 /// Membuka sheet "Filter Menu". Mengembalikan pilihan user,
 /// atau null jika ditutup tanpa menerapkan.
+///
+/// [counts] = jumlah menu per kategori (key = KUNCI kategori, termasuk
+/// [FilterMenu.semuaKategori]). Urutan key menentukan urutan baris.
 Future<FilterMenu?> showFilterMenuSheet(
-  BuildContext context, {
-  required FilterMenu current,
-  required Map<String, int> counts,
-}) {
+    BuildContext context, {
+      required FilterMenu current,
+      required Map<String, int> counts,
+    }) {
   return showModalBottomSheet<FilterMenu>(
     context: context,
     isScrollControlled: true,
@@ -80,39 +80,33 @@ class _FilterMenuSheet extends StatefulWidget {
 
 class _FilterMenuSheetState extends State<_FilterMenuSheet> {
   // Warna khusus sheet ini (diambil dari desain).
-  // Pindahkan ke AppColors jika sudah ada padanannya.
   static const _handle = Color(0xFFD9C9B8);
   static const _rowBg = Color(0xFFFEEBDC);
   static const _rowSelectedBg = Color(0xFFFDE3CE);
   static const _radioOff = Color(0xFFF8D8BD);
   static const _countBg = Color(0xFFFDDDC4);
-  static const _sectionTitle = Color(0xFF8A3B12);
   static const _resetText = Color(0xFF334A7A);
 
   late String _category;
-  FoodCostStatus? _foodCost;
 
   @override
   void initState() {
     super.initState();
     _category = widget.current.category;
-    _foodCost = widget.current.foodCost;
   }
 
-  void _reset() {
-    setState(() {
-      _category = FilterMenu.semuaKategori;
-      _foodCost = null;
-    });
-  }
+  /// Label tampilan untuk kunci kategori.
+  String _categoryLabel(String key) => key == FilterMenu.semuaKategori
+      ? 'Semua Kategori'
+      : menuCategoryByKey(key).label;
 
-  void _apply() {
-    Navigator.pop(context, FilterMenu(category: _category, foodCost: _foodCost));
-  }
+  void _reset() => setState(() => _category = FilterMenu.semuaKategori);
+
+  void _apply() => Navigator.pop(context, FilterMenu(category: _category));
 
   @override
   Widget build(BuildContext context) {
-    final labels = [FilterMenu.semuaKategori, ...kKategoriMenuFilter.keys];
+    final keys = widget.counts.keys.toList();
 
     return SafeArea(
       top: false,
@@ -123,64 +117,13 @@ class _FilterMenuSheetState extends State<_FilterMenuSheet> {
           Container(height: 1, color: AppColors.cardBorder),
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.fromLTRB(25, 12, 25, 0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ----- Kategori -----
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 25),
-                    child: Column(
-                      children: [
-                        for (final label in labels) ...[
-                          _buildCategoryRow(label),
-                          const SizedBox(height: 4),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // ----- Status Food Cost -----
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 25),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text(
-                          'Status Food Cost',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: _sectionTitle,
-                          ),
-                        ),
-                        Text(
-                          'Target: ≤30%',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.subtitle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 25),
-                    child: Row(
-                      children: [
-                        _buildChip('Semua', null),
-                        const SizedBox(width: 8),
-                        _buildChip('Aman (≤30%)', FoodCostStatus.aman),
-                        const SizedBox(width: 8),
-                        _buildChip('Waspada (30–35%)', FoodCostStatus.waspada),
-                        const SizedBox(width: 8),
-                        _buildChip('Kritis (>35%)', FoodCostStatus.kritis),
-                      ],
-                    ),
-                  ),
+                  for (final key in keys) ...[
+                    _buildCategoryRow(key),
+                    const SizedBox(height: 4),
+                  ],
                 ],
               ),
             ),
@@ -317,13 +260,13 @@ class _FilterMenuSheetState extends State<_FilterMenuSheet> {
   }
 
   // ================= BARIS KATEGORI =================
-  Widget _buildCategoryRow(String label) {
-    final selected = _category == label;
-    final count = widget.counts[label] ?? 0;
+  Widget _buildCategoryRow(String key) {
+    final selected = _category == key;
+    final count = widget.counts[key] ?? 0;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => _category = label),
+      onTap: () => setState(() => _category = key),
       child: Container(
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -343,21 +286,21 @@ class _FilterMenuSheetState extends State<_FilterMenuSheet> {
               ),
               child: selected
                   ? Center(
-                      child: Container(
-                        width: 9,
-                        height: 9,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                    )
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              )
                   : null,
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                label,
+                _categoryLabel(key),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -384,31 +327,6 @@ class _FilterMenuSheetState extends State<_FilterMenuSheet> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // ================= CHIP STATUS FOOD COST =================
-  Widget _buildChip(String label, FoodCostStatus? value) {
-    final selected = _foodCost == value;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => _foodCost = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.orangeAccent : _rowBg,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            color: selected ? Colors.white : AppColors.textDark,
-          ),
         ),
       ),
     );

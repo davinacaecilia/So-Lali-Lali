@@ -1,20 +1,28 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../constants/ingredient_options.dart' show cloudinaryResize;
+import '../../constants/menu_options.dart';
+import '../../models/menu_data.dart';
+import '../../services/menu_service.dart';
 import '../partials/colors.dart';
 import 'filter_menu.dart';
-import 'tambah_menu.dart';
 import 'informasi_menu.dart';
+import 'tambah_menu.dart';
 
 // =====================================================
-// MODEL + DATA DUMMY  (nanti diganti data dari API)
+// MODEL TAMPILAN
 // =====================================================
 class RecipeItem {
+  final String? ingredientId;
   final String name;
   final double qty;
-  final String unit; 
-  final double unitPrice;
+  final String unit;
+  final double unitPrice; // kompatibilitas: tidak dipakai lagi
 
   const RecipeItem({
+    this.ingredientId,
     required this.name,
     required this.qty,
     this.unit = 'g',
@@ -23,70 +31,79 @@ class RecipeItem {
 }
 
 class MenuModel {
-  final String id;
+  final String docId; // id dokumen Firestore (untuk simpan/ubah)
+  final String id; // kode tampilan, mis. "MKU-001"
   final String name;
-  final String category;
+  final String category; // label untuk tampilan
+  final String categoryKey; // kunci untuk filter
   final int price;
-  final double? foodCost; // persen; null = belum ada resep
+  final double? foodCost; // kompatibilitas: food cost dihapus, tidak dipakai
   final List<RecipeItem> recipe;
+  final String? photoUrl; // link foto (Cloudinary)
   final String? imageAsset;
   final IconData icon;
 
   const MenuModel({
+    this.docId = '',
     this.id = '-',
     required this.name,
     required this.category,
+    this.categoryKey = '',
     required this.price,
     this.foodCost,
     this.recipe = const [],
+    this.photoUrl,
     this.imageAsset,
     this.icon = Icons.restaurant_menu,
   });
 
-  bool get hasRecipe => foodCost != null;
+  factory MenuModel.fromData(MenuData d) => MenuModel(
+    docId: d.id,
+    id: d.code,
+    name: d.name,
+    category: menuCategoryByKey(d.categoryKey).label,
+    categoryKey: d.categoryKey,
+    price: d.price,
+    recipe: d.recipe
+        .map(
+          (r) => RecipeItem(
+        ingredientId: r.ingredientId,
+        name: r.name,
+        qty: r.qty,
+        unit: r.unit,
+      ),
+    )
+        .toList(),
+    photoUrl: d.photoUrl,
+    icon: _menuIconFor(d.categoryKey),
+  );
 
-  /// Biaya bahan (Rp) dihitung dari harga jual x food cost.
-  int get materialCost => foodCost == null ? 0 : (price * foodCost! / 100).round();
+  bool get hasRecipe => recipe.isNotEmpty;
+
+  /// Kompatibilitas: food cost dihapus, selalu 0.
+  int get materialCost => 0;
 }
 
-const List<MenuModel> dummyMenu = [
-  MenuModel(
-    name: 'Nasi Goreng Spesial',
-    category: 'Makanan Utama',
-    price: 28000,
-    foodCost: 34,
-  ),
-  MenuModel(
-    name: 'Kopi Susu Gula Aren',
-    category: 'Minuman Kopi',
-    price: 28000,
-    foodCost: 34,
-  ),
-  MenuModel(
-    name: 'Americano',
-    category: 'Minuman Kopi',
-    price: 18000,
-    foodCost: null,
-  ),
-  MenuModel(
-    name: 'Matcha Latte',
-    category: 'Minuman Non-Kopi',
-    price: 26000,
-    foodCost: 38,
-  ),
-  MenuModel(
-    name: 'Kentang Goreng',
-    category: 'Camilan & Penutup',
-    price: 15000,
-    foodCost: 22,
-  ),
-  MenuModel(
-    name: 'Ayam Geprek',
-    category: 'Makanan Utama',
-    price: 25000,
-    foodCost: 30,
-  ),
-];
+IconData _menuIconFor(String categoryKey) {
+  switch (categoryKey) {
+    case 'makanan_utama':
+      return Icons.lunch_dining_outlined;
+    case 'camilan_penutup':
+      return Icons.icecream_outlined;
+    case 'roti_kue':
+      return Icons.bakery_dining_outlined;
+    case 'minuman_kopi':
+      return Icons.coffee_outlined;
+    case 'minuman_non_kopi':
+      return Icons.emoji_food_beverage_outlined;
+    case 'paket_combo':
+      return Icons.takeout_dining_outlined;
+    case 'tambahan_topping':
+      return Icons.add_circle_outline;
+    default:
+      return Icons.restaurant_menu;
+  }
+}
 
 // =====================================================
 // KONTEN TAB "MENU"
@@ -110,45 +127,68 @@ class _DaftarMenuState extends State<DaftarMenu> {
   static const _cube = AppColors.cube;
 
   // ------------------------------------------------------------
-  // DATA. (dummyMenu)
+  // DATA dari Firestore (realtime)
   // ------------------------------------------------------------
-  final List<MenuModel> _menu = dummyMenu;
+  List<MenuModel> _menu = [];
+  bool _loading = true;
+  String? _error;
+  StreamSubscription<List<MenuData>>? _sub;
 
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
   FilterMenu _filter = const FilterMenu();
 
+  @override
+  void initState() {
+    super.initState();
+    _sub = MenuService.instance.watchAll().listen(
+          (list) {
+        if (!mounted) return;
+        setState(() {
+          _menu = list.map(MenuModel.fromData).toList();
+          _loading = false;
+          _error = null;
+        });
+      },
+      onError: (e) {
+        debugPrint('menu watchAll error: $e');
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Gagal memuat data menu.';
+        });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   List<MenuModel> get _visible {
     final q = _query.trim().toLowerCase();
-    final match = kKategoriMenuFilter[_filter.category];
 
     return _menu.where((e) {
-      // pencarian nama
       if (q.isNotEmpty && !e.name.toLowerCase().contains(q)) return false;
-
-      // kategori
       if (_filter.category != FilterMenu.semuaKategori &&
-          e.category != match) {
+          e.categoryKey != _filter.category) {
         return false;
       }
-
-      // status food cost (menu tanpa resep tidak punya status)
-      if (_filter.foodCost != null) {
-        final fc = e.foodCost;
-        if (fc == null) return false;
-        if (foodCostStatusOf(fc) != _filter.foodCost) return false;
-      }
-
       return true;
     }).toList();
   }
 
-  /// Jumlah menu per kategori untuk ditampilkan di sheet filter.
+  /// Jumlah menu per kategori untuk sheet filter (key = kunci kategori).
+  /// Hanya kategori yang punya menu (atau sedang dipilih) yang ditampilkan.
   Map<String, int> _categoryCounts() {
     final counts = <String, int>{FilterMenu.semuaKategori: _menu.length};
-    kKategoriMenuFilter.forEach((label, match) {
-      counts[label] = _menu.where((e) => e.category == match).length;
-    });
+    for (final c in kMenuCategories) {
+      final n = _menu.where((e) => e.categoryKey == c.key).length;
+      if (n > 0 || _filter.category == c.key) counts[c.key] = n;
+    }
     return counts;
   }
 
@@ -162,16 +202,10 @@ class _DaftarMenuState extends State<DaftarMenu> {
   }
 
   void _goTambah() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const TambahMenuBaruPage()),
-  );
-}
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TambahMenuBaruPage()),
+    );
   }
 
   @override
@@ -197,8 +231,26 @@ class _DaftarMenuState extends State<DaftarMenu> {
     );
   }
 
-  // ---------- Pilih tampilan: kosong / tidak ketemu / daftar ----------
+  // ---------- Pilih tampilan: memuat / error / kosong / tidak ketemu / daftar ----------
   Widget _buildBody(List<MenuModel> items) {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 60),
+        child: CircularProgressIndicator(color: _orange),
+      );
+    }
+
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 32),
+        child: _buildEmptyState(
+          icon: Icons.error_outline,
+          title: 'Gagal memuat',
+          subtitle: _error!,
+        ),
+      );
+    }
+
     if (_menu.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(top: 32),
@@ -226,15 +278,17 @@ class _DaftarMenuState extends State<DaftarMenu> {
       children: items
           .map(
             (e) => _MenuTile(
-  item: e,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => InformasiMenuPage(menu: e)),
-    );
-  },
-),
-          )
+          item: e,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => InformasiMenuPage(menu: e),
+              ),
+            );
+          },
+        ),
+      )
           .toList(),
     );
   }
@@ -409,19 +463,35 @@ class _MenuTile extends StatelessWidget {
     return 'Rp $buf';
   }
 
-  /// 34 -> "34", 33.5 -> "33,5"
-  static String _fmtPct(double v) {
-    final s = v == v.roundToDouble() ? v.toInt().toString() : v.toString();
-    return s.replaceAll('.', ',');
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  /// Foto menu; kalau tidak ada / gagal dimuat, tampilkan ikon kategori.
+  Widget _buildThumb() {
     final fallback = Container(
       color: _peach,
       child: Icon(item.icon, size: 28, color: AppColors.brown),
     );
 
+    final url = item.photoUrl;
+    if (url != null && url.isNotEmpty) {
+      return Image.network(
+        cloudinaryResize(url, width: 160, height: 160),
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) =>
+        progress == null ? child : fallback,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
+    if (item.imageAsset != null) {
+      return Image.asset(
+        item.imageAsset!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
+    return fallback;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 25),
       child: InkWell(
@@ -433,17 +503,7 @@ class _MenuTile extends StatelessWidget {
             // Foto menu
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                width: 63,
-                height: 63,
-                child: item.imageAsset != null
-                    ? Image.asset(
-                        item.imageAsset!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => fallback,
-                      )
-                    : fallback,
-              ),
+              child: SizedBox(width: 63, height: 63, child: _buildThumb()),
             ),
             const SizedBox(width: 15),
             // Nama + kategori
@@ -474,7 +534,7 @@ class _MenuTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            // Harga + badge
+            // Harga + info resep
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -487,7 +547,7 @@ class _MenuTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                _buildBadge(),
+                _buildRecipeInfo(),
               ],
             ),
           ],
@@ -496,55 +556,35 @@ class _MenuTile extends StatelessWidget {
     );
   }
 
-  Widget _buildBadge() {
-    final Color bg;
-    final Color fg;
-    final String label;
-    IconData? icon;
-
-    final fc = item.foodCost;
-    if (fc == null) {
-      bg = AppColors.chipBg;
-      fg = AppColors.brownDark;
-      label = 'Belum ada resep';
-      icon = Icons.warning_amber_rounded;
-    } else {
-      label = 'Food cost ${_fmtPct(fc)}%';
-      switch (foodCostStatusOf(fc)) {
-        case FoodCostStatus.aman:
-          bg = AppColors.safeBg;
-          fg = AppColors.green;
-          break;
-        case FoodCostStatus.waspada:
-          bg = AppColors.warningStatusBg;
-          fg = AppColors.warningStatusText;
-          break;
-        case FoodCostStatus.kritis:
-          bg = AppColors.exhaustedStatusBg;
-          fg = AppColors.red;
-          break;
-      }
+  Widget _buildRecipeInfo() {
+    if (item.hasRecipe) {
+      return Text(
+        '${item.recipe.length} bahan',
+        style: const TextStyle(fontSize: 11.5, color: _subtitle),
+      );
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: bg,
+        color: AppColors.chipBg,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 13, color: fg),
-            const SizedBox(width: 4),
-          ],
+          Icon(
+            Icons.warning_amber_rounded,
+            size: 13,
+            color: AppColors.brownDark,
+          ),
+          SizedBox(width: 4),
           Text(
-            label,
+            'Belum ada resep',
             style: TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
-              color: fg,
+              color: AppColors.brownDark,
             ),
           ),
         ],

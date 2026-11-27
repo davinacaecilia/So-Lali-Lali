@@ -1,24 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../models/ingredient.dart';
+
 /// Satu pilihan bahan di pop up "Pilih Bahan".
+/// [unit] = satuan DASAR bahan (g / ml / pcs ...) karena takaran resep
+/// disimpan dalam satuan dasar.
 class BahanOption {
+  final String id; // id dokumen bahan di Firestore ('' = data contoh)
   final String name;
   final String category;
   final String unit;
-  final double unitPrice; // Rp per 1 satuan
+  final double unitPrice; // kompatibilitas: tidak dipakai lagi
   final IconData icon;
 
   const BahanOption({
+    this.id = '',
     required this.name,
     required this.category,
     required this.unit,
-    required this.unitPrice,
+    this.unitPrice = 0,
     this.icon = Icons.inventory_2_outlined,
   });
+
+  factory BahanOption.fromIngredient(Ingredient i) => BahanOption(
+    id: i.id,
+    name: i.name,
+    category: i.category.label,
+    unit: i.unit.baseLabel,
+    icon: _bahanIconFor(i.categoryKey),
+  );
 }
 
-/// Hasil dari pop up: bahan yang dipilih + takarannya.
+IconData _bahanIconFor(String categoryKey) {
+  switch (categoryKey) {
+    case 'bahan_kering':
+      return Icons.grain;
+    case 'susu_olahan':
+      return Icons.local_drink_outlined;
+    case 'daging_unggas':
+      return Icons.kebab_dining;
+    case 'seafood':
+      return Icons.set_meal_outlined;
+    case 'telur':
+      return Icons.egg_outlined;
+    case 'sayur_buah':
+      return Icons.eco_outlined;
+    case 'bumbu_rempah':
+      return Icons.spa_outlined;
+    case 'minyak_lemak':
+      return Icons.water_drop_outlined;
+    case 'minuman_sirup':
+      return Icons.coffee_outlined;
+    case 'bahan_beku':
+      return Icons.ac_unit;
+    default:
+      return Icons.category_outlined;
+  }
+}
+
+/// Hasil dari pop up: bahan yang dipilih + takarannya (satuan dasar).
 class PickedBahan {
   final BahanOption option;
   final double qty;
@@ -26,8 +67,7 @@ class PickedBahan {
   const PickedBahan(this.option, this.qty);
 }
 
-
-// TODO: ganti dengan data bahan dari API
+/// Kompatibilitas: data contoh lama. Halaman tambah menu tidak memakainya lagi.
 const List<BahanOption> daftarBahanContoh = [
   BahanOption(
     name: 'Susu UHT Full Cream',
@@ -46,11 +86,13 @@ const List<BahanOption> daftarBahanContoh = [
 ];
 
 /// Membuka pop up Pilih Bahan. Mengembalikan null jika ditutup tanpa memilih.
+/// [usedIds] = id bahan yang sudah ada di resep (tidak bisa dipilih lagi).
 Future<PickedBahan?> showPilihBahanSheet(
-  BuildContext context, {
-  required List<BahanOption> options,
-  Set<String> usedNames = const {},
-}) {
+    BuildContext context, {
+      required List<BahanOption> options,
+      Set<String> usedNames = const {},
+      Set<String> usedIds = const {},
+    }) {
   FocusScope.of(context).unfocus();
   return showModalBottomSheet<PickedBahan>(
     context: context,
@@ -59,7 +101,11 @@ Future<PickedBahan?> showPilihBahanSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (_) => PilihBahanSheet(options: options, usedNames: usedNames),
+    builder: (_) => PilihBahanSheet(
+      options: options,
+      usedNames: usedNames,
+      usedIds: usedIds,
+    ),
   );
 }
 
@@ -71,8 +117,14 @@ Future<PickedBahan?> showPilihBahanSheet(
 class PilihBahanSheet extends StatefulWidget {
   final List<BahanOption> options;
   final Set<String> usedNames; // nama bahan (lowercase) yang sudah di resep
+  final Set<String> usedIds; // id bahan yang sudah di resep
 
-  const PilihBahanSheet({required this.options, required this.usedNames});
+  const PilihBahanSheet({
+    super.key,
+    required this.options,
+    this.usedNames = const {},
+    this.usedIds = const {},
+  });
 
   @override
   State<PilihBahanSheet> createState() => _PilihBahanSheetState();
@@ -102,15 +154,9 @@ class _PilihBahanSheetState extends State<PilihBahanSheet> {
   double get _qtyValue =>
       double.tryParse(_qty.text.trim().replaceAll(',', '.')) ?? 0;
 
-  static String _fmtRupiah(int v) {
-    final s = v.toString();
-    final buf = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write('.');
-      buf.write(s[i]);
-    }
-    return 'Rp $buf';
-  }
+  bool _isUsed(BahanOption o) =>
+      (o.id.isNotEmpty && widget.usedIds.contains(o.id)) ||
+          widget.usedNames.contains(o.name.toLowerCase());
 
   void _select(BahanOption o) {
     FocusScope.of(context).unfocus();
@@ -149,9 +195,9 @@ class _PilihBahanSheetState extends State<PilihBahanSheet> {
       child: step2
           ? content
           : SizedBox(
-              height: MediaQuery.of(context).size.height * 0.85,
-              child: content,
-            ),
+        height: MediaQuery.of(context).size.height * 0.85,
+        child: content,
+      ),
     );
   }
 
@@ -242,25 +288,25 @@ class _PilihBahanSheetState extends State<PilihBahanSheet> {
         Expanded(
           child: list.isEmpty
               ? const Center(
-                  child: Text(
-                    'Bahan tidak ditemukan',
-                    style: TextStyle(color: _grey),
-                  ),
-                )
+            child: Text(
+              'Bahan tidak ditemukan',
+              style: TextStyle(color: _grey),
+            ),
+          )
               : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  itemCount: list.length,
-                  separatorBuilder: (_, __) =>
-                      const Divider(height: 1, color: _divider),
-                  itemBuilder: (_, i) => _buildItem(list[i]),
-                ),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            itemCount: list.length,
+            separatorBuilder: (_, __) =>
+            const Divider(height: 1, color: _divider),
+            itemBuilder: (_, i) => _buildItem(list[i]),
+          ),
         ),
       ],
     );
   }
 
   Widget _buildItem(BahanOption o) {
-    final used = widget.usedNames.contains(o.name.toLowerCase());
+    final used = _isUsed(o);
 
     return InkWell(
       onTap: used ? null : () => _select(o),
@@ -286,7 +332,7 @@ class _PilihBahanSheetState extends State<PilihBahanSheet> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${o.category} · ${o.unit}',
+                      '${o.category} · takaran dalam ${o.unit}',
                       style: const TextStyle(fontSize: 13, color: _brown),
                     ),
                   ],
@@ -329,7 +375,6 @@ class _PilihBahanSheetState extends State<PilihBahanSheet> {
   // ====================== LANGKAH 2: takaran per porsi ======================
   Widget _buildStep2() {
     final o = _selected!;
-    final cost = (_qtyValue * o.unitPrice).round();
     final canSubmit = _qtyValue > 0;
 
     return Column(
@@ -383,6 +428,11 @@ class _PilihBahanSheetState extends State<PilihBahanSheet> {
                   fontWeight: FontWeight.w700,
                   color: _textDark,
                 ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Isi dalam satuan ${o.unit}',
+                style: const TextStyle(fontSize: 12.5, color: _grey),
               ),
               const SizedBox(height: 10),
               Row(
@@ -463,40 +513,6 @@ class _PilihBahanSheetState extends State<PilihBahanSheet> {
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 14),
-              // biaya takaran
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 15,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8EFE2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _divider),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.payments_outlined, size: 18, color: _grey),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Biaya takaran',
-                        style: TextStyle(fontSize: 13, color: _grey),
-                      ),
-                    ),
-                    Text(
-                      _fmtRupiah(cost),
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: _textDark,
-                      ),
-                    ),
-                  ],
-                ),
               ),
               const SizedBox(height: 28),
               SizedBox(

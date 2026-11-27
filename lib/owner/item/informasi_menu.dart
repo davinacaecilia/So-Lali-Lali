@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../constants/ingredient_options.dart' show cloudinaryResize;
+import '../../constants/menu_options.dart';
 import 'daftar_menu.dart';
 import 'edit_detail_menu.dart';
 import 'edit_resep_menu.dart';
@@ -7,7 +9,8 @@ import 'edit_resep_menu.dart';
 // =====================================================
 // HALAMAN INFORMASI MENU
 // Dibuka dari DaftarMenu ketika sebuah menu di-klik.
-// Menerima update dari EditDetailMenuPage & EditResepMenuPage.
+// CATATAN: hasil edit saat ini hanya mengubah tampilan di halaman ini
+// (belum disimpan ke Firestore) - dikerjakan di tahap edit.
 // =====================================================
 class InformasiMenuPage extends StatefulWidget {
   final MenuModel menu;
@@ -19,7 +22,6 @@ class InformasiMenuPage extends StatefulWidget {
 }
 
 class _InformasiMenuPageState extends State<InformasiMenuPage> {
-  // State data menu saat ini. Akan diperbarui jika ada kembalian dari halaman edit.
   late MenuModel menu = widget.menu;
 
   // ---------- Warna (disesuaikan dengan desain) ----------
@@ -32,15 +34,7 @@ class _InformasiMenuPageState extends State<InformasiMenuPage> {
   static const _divider = Color(0xFFEBDDC3);
   static const _rowDivider = Color(0xFFF0EBE2);
   static const _cardBorder = Color(0xFFF1EDE6);
-  static const _profitBg = Color(0xFFFFF5EC);
   static const _grey = Color(0xFF6B6B6B);
-  static const _warnBg = Color(0xFFFFE3D1);
-  static const _warnText = Color(0xFFB8470A);
-  static const _okBg = Color(0xFFDDF3E4);
-  static const _okText = Color(0xFF1E8449);
-
-  /// Target HPP (food cost) dalam persen.
-  static const double _targetHpp = 30;
 
   // ---------- Helper format ----------
   /// 22000 -> "Rp 22.000"
@@ -60,16 +54,30 @@ class _InformasiMenuPageState extends State<InformasiMenuPage> {
     return s.replaceAll('.', ',');
   }
 
-  // ---------- Aksi Navigasi & Update ----------
+  // ---------- Aksi Navigasi ----------
   Future<void> _editDetail() async {
     final result = await Navigator.push<MenuModel>(
       context,
       MaterialPageRoute(builder: (_) => EditDetailMenuPage(menu: menu)),
     );
-    // Jika user menekan "Simpan" (result tidak null), perbarui UI
-    if (result != null) {
-      setState(() => menu = result);
-    }
+    if (result == null) return;
+
+    // TODO (tahap edit): simpan ke Firestore.
+    final key = menuCategoryByLabel(result.category).key;
+    setState(() {
+      menu = MenuModel(
+        docId: menu.docId,
+        id: menu.id,
+        name: result.name,
+        category: menuCategoryByKey(key).label,
+        categoryKey: key,
+        price: result.price,
+        recipe: menu.recipe,
+        photoUrl: menu.photoUrl,
+        imageAsset: menu.imageAsset,
+        icon: menu.icon,
+      );
+    });
   }
 
   Future<void> _editResep() async {
@@ -77,10 +85,23 @@ class _InformasiMenuPageState extends State<InformasiMenuPage> {
       context,
       MaterialPageRoute(builder: (_) => EditResepMenuPage(menu: menu)),
     );
-    // Jika user menekan "Simpan Perubahan" (result tidak null), perbarui UI
-    if (result != null) {
-      setState(() => menu = result);
-    }
+    if (result == null) return;
+
+    // TODO (tahap edit): simpan ke Firestore.
+    setState(() {
+      menu = MenuModel(
+        docId: menu.docId,
+        id: menu.id,
+        name: menu.name,
+        category: menu.category,
+        categoryKey: menu.categoryKey,
+        price: menu.price,
+        recipe: result.recipe,
+        photoUrl: menu.photoUrl,
+        imageAsset: menu.imageAsset,
+        icon: menu.icon,
+      );
+    });
   }
 
   // ------------------------------------------------------------
@@ -116,23 +137,17 @@ class _InformasiMenuPageState extends State<InformasiMenuPage> {
                     style: const TextStyle(fontSize: 11, color: _grey),
                   ),
                   const SizedBox(height: 28),
-                  
+
                   // Bagian Detail Menu
                   _buildSectionTitle('Detail Menu', onEdit: _editDetail),
                   const SizedBox(height: 16),
                   _buildDetailCard(),
                   const SizedBox(height: 26),
-                  
+
                   // Bagian Rincian Resep
                   _buildSectionTitle('Rincian Resep', onEdit: _editResep),
                   const SizedBox(height: 14),
                   _buildRecipe(),
-                  
-                  // Profitabilitas muncul hanya jika resep tidak kosong
-                  if (menu.hasRecipe) ...[
-                    const SizedBox(height: 22),
-                    _buildProfitCard(),
-                  ],
                 ],
               ),
             ),
@@ -167,7 +182,6 @@ class _InformasiMenuPageState extends State<InformasiMenuPage> {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 14),
                   child: IconButton(
-                    // Saat pop halaman ini, bawa menu terakhir agar Daftar Menu ikut terupdate
                     onPressed: () => Navigator.pop(context, menu),
                     icon: const Icon(
                       Icons.arrow_back,
@@ -196,24 +210,30 @@ class _InformasiMenuPageState extends State<InformasiMenuPage> {
   Widget _buildImage() {
     final fallback = Container(
       color: _beige,
-      child: const Center(
-        child: Icon(Icons.restaurant_menu, size: 48, color: _brown),
-      ),
+      child: Center(child: Icon(menu.icon, size: 48, color: _brown)),
     );
+
+    Widget photo = fallback;
+    final url = menu.photoUrl;
+    if (url != null && url.isNotEmpty) {
+      photo = Image.network(
+        cloudinaryResize(url, width: 900),
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) =>
+        progress == null ? child : fallback,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    } else if (menu.imageAsset != null) {
+      photo = Image.asset(
+        menu.imageAsset!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
-      child: SizedBox(
-        width: double.infinity,
-        height: 168,
-        child: menu.imageAsset != null
-            ? Image.asset(
-                menu.imageAsset!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => fallback,
-              )
-            : fallback,
-      ),
+      child: SizedBox(width: double.infinity, height: 168, child: photo),
     );
   }
 
@@ -282,10 +302,7 @@ class _InformasiMenuPageState extends State<InformasiMenuPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: _label),
-          ),
+          Text(label, style: const TextStyle(fontSize: 13, color: _label)),
           const SizedBox(width: 12),
           Flexible(
             child: Text(
@@ -379,136 +396,6 @@ class _InformasiMenuPageState extends State<InformasiMenuPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  // ---------- Analisa profitabilitas ----------
-  Widget _buildProfitCard() {
-    // Membaca perhitungan cost dinamis dari model resep baru
-    final cost = menu.materialCost;
-    final pct = menu.foodCost ?? 0.0;
-    final margin = menu.price - cost;
-    final overTarget = pct > _targetHpp;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-      decoration: BoxDecoration(
-        color: _profitBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _brown, width: 1),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.calculate_outlined, size: 16, color: _label),
-              const SizedBox(width: 6),
-              const Text(
-                'ANALISA PROFITABILITAS',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                  color: _label,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                'Target HPP: ${_fmtNum(_targetHpp)}%',
-                style: const TextStyle(fontSize: 11.5, color: _grey),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Divider(height: 1, thickness: 1, color: _divider),
-          const SizedBox(height: 4),
-          _profitRow('Biaya bahan', _fmtRupiah(cost)),
-          _profitRow('Margin', _fmtRupiah(margin)),
-          const Divider(height: 1, thickness: 1, color: _divider),
-          SizedBox(
-            height: 38,
-            child: Row(
-              children: [
-                const Text(
-                  'Food cost',
-                  style: TextStyle(fontSize: 13, color: _textDark),
-                ),
-                const Spacer(),
-                Text(
-                  '${_fmtNum(pct)}%',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: _textDark,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _targetBadge(overTarget),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _profitRow(String label, String value) {
-    return SizedBox(
-      height: 30,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: _textDark),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: _textDark,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _targetBadge(bool overTarget) {
-    final bg = overTarget ? _warnBg : _okBg;
-    final fg = overTarget ? _warnText : _okText;
-    final label = overTarget
-        ? 'Di atas target ${_fmtNum(_targetHpp)}%'
-        : 'Sesuai target';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            overTarget
-                ? Icons.warning_amber_rounded
-                : Icons.check_circle_outline,
-            size: 13,
-            color: fg,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-              color: fg,
-            ),
-          ),
-        ],
       ),
     );
   }
