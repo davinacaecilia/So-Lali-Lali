@@ -46,6 +46,8 @@ class MyApp extends StatelessWidget {
         '/lupa-password': (context) => const ForgotPasswordScreen(),
         '/verifikasi-akun': (context) => const VerifyEmailScreen(),
         '/owner': (context) => const DashboardOwnerPage(),   // tambahan
+        '/kasir': (context) => const KasirScreen(),
+        '/kitchen': (context) => const KitchenScreen(),
         '/home': (context) => const HomeFrontendScreen(),    // tambahan (placeholder role lain)
       },
     );
