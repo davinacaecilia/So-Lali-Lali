@@ -1,16 +1,21 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../constants/menu_options.dart';
+import '../../models/ingredient.dart';
+import '../../models/menu_data.dart';
+import '../../services/cloudinary_service.dart';
+import '../../services/ingredient_service.dart';
+import '../../services/menu_service.dart';
 import '../partials/colors.dart';
-import 'daftar_menu.dart'; // MenuModel
-import 'filter_menu.dart'; // foodCostStatusOf
+import 'popup_pilihbahan.dart';
 import 'tambah_menu.dart'; // MenuDasar
-import 'popup_pilihbahan.dart'; // showPilihBahanSheet, PickedBahan, daftarBahanContoh
 
-// Model bahan yang dipakai untuk menghitung biaya resep.
-// pricePerUnit mengikuti satuan dari popup, misalnya Rp/kg atau Rp/liter.
+/// Kompatibilitas: model lama (biaya bahan). Tidak dipakai lagi oleh halaman
+/// tambah menu; dibiarkan kalau halaman edit masih memakainya.
 class BahanResep {
   final String name;
   final String unit;
@@ -23,17 +28,15 @@ class BahanResep {
   });
 }
 
-/// Satu baris resep: bahan + takaran.
+/// Satu baris resep: bahan (dari Firestore) + takaran per porsi.
 class _BarisResep {
-  BahanResep? bahan;
+  BahanOption? bahan;
   final TextEditingController qty = TextEditingController();
 
   double get qtyValue =>
       double.tryParse(qty.text.trim().replaceAll(',', '.')) ?? 0;
 
   bool get lengkap => bahan != null && qtyValue > 0;
-
-  double get biaya => bahan == null ? 0 : bahan!.pricePerUnit * qtyValue;
 }
 
 // =====================================================
@@ -63,25 +66,42 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
 
   final List<_BarisResep> _rows = [_BarisResep()];
 
+  // Daftar bahan asli dari Firestore (realtime)
+  List<Ingredient>? _bahan;
+  StreamSubscription<List<Ingredient>>? _sub;
+
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = IngredientService.instance.watchAll().listen(
+          (list) {
+        if (mounted) setState(() => _bahan = list);
+      },
+      onError: (e) => debugPrint('bahan watchAll error: $e'),
+    );
+  }
+
   @override
   void dispose() {
+    _sub?.cancel();
     for (final r in _rows) {
       r.qty.dispose();
     }
     super.dispose();
   }
 
-  // ---------- Perhitungan ----------
-  double get _totalBiaya => _rows.fold(0, (s, r) => s + r.biaya);
-
-  double? get _foodCost {
-    if (widget.dasar.price <= 0 || _totalBiaya <= 0) return null;
-    return _totalBiaya / widget.dasar.price * 100;
-  }
-
   bool get _valid => _rows.isNotEmpty && _rows.every((r) => r.lengkap);
 
   // ---------- Aksi ----------
+  void _pesan(String teks) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(teks)));
+  }
+
   void _removeRow(int i) {
     setState(() {
       final r = _rows.removeAt(i);
@@ -89,38 +109,45 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
     });
   }
 
-  /// Membuka bottom sheet dari popup_pilihbahan.dart.
-  /// Nama bahan yang sudah dipakai dikirim agar tidak bisa dipilih dua kali.
-  Future<PickedBahan?> _bukaPopupPilihBahan({int? excludeIndex}) {
-    final usedNames = _rows.asMap().entries
-        .where((entry) =>
-            entry.key != excludeIndex && entry.value.bahan != null)
-        .map((entry) => entry.value.bahan!.name.toLowerCase())
+  /// Membuka bottom sheet pilih bahan (bahan asli dari Firestore).
+  /// Bahan yang sudah dipakai di resep tidak bisa dipilih dua kali.
+  Future<PickedBahan?> _bukaPopupPilihBahan({int? excludeIndex}) async {
+    final bahan = _bahan;
+    if (bahan == null) {
+      _pesan('Memuat daftar bahan, coba lagi sebentar.');
+      return null;
+    }
+    if (bahan.isEmpty) {
+      _pesan('Belum ada bahan. Tambahkan bahan dulu di tab Bahan.');
+      return null;
+    }
+
+    final usedIds = _rows
+        .asMap()
+        .entries
+        .where((e) => e.key != excludeIndex && e.value.bahan != null)
+        .map((e) => e.value.bahan!.id)
         .toSet();
 
     return showPilihBahanSheet(
       context,
-      options: daftarBahanContoh,
-      usedNames: usedNames,
+      options: bahan.map(BahanOption.fromIngredient).toList(),
+      usedIds: usedIds,
     );
   }
 
-  /// Memindahkan hasil popup ke baris resep, termasuk satuan, harga,
-  /// dan takaran yang sudah diisi pada langkah kedua popup.
+  static String _fmtQty(double v) =>
+      v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+
   void _isiBarisDenganHasil(_BarisResep row, PickedBahan hasil) {
-    row.bahan = BahanResep(
-      name: hasil.option.name,
-      unit: hasil.option.unit,
-      pricePerUnit: hasil.option.unitPrice,
-    );
-    row.qty.text = hasil.qty.toString();
+    row.bahan = hasil.option;
+    row.qty.text = _fmtQty(hasil.qty);
   }
 
   /// Dipakai ketika pengguna menekan nama bahan pada baris yang sudah ada.
   Future<void> _pilihBahan(int i) async {
     final hasil = await _bukaPopupPilihBahan(excludeIndex: i);
     if (!mounted || hasil == null) return;
-
     setState(() => _isiBarisDenganHasil(_rows[i], hasil));
   }
 
@@ -132,7 +159,6 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
 
     setState(() {
       final indexKosong = _rows.indexWhere((row) => row.bahan == null);
-
       if (indexKosong != -1) {
         _isiBarisDenganHasil(_rows[indexKosong], hasil);
       } else {
@@ -143,19 +169,77 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
     });
   }
 
-  void _submit() {
-    if (!_valid) return;
+  /// Unggah foto (jika ada) -> simpan menu + resep ke Firestore.
+  Future<void> _submit() async {
+    if (!_valid || _saving) return;
 
-    final menu = MenuModel(
-      name: widget.dasar.name,
-      category: widget.dasar.category,
-      price: widget.dasar.price,
-      foodCost: _foodCost,
-      imageAsset: widget.dasar.imagePath,
-    );
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _saving = true);
+    try {
+      // 1) foto -> link Cloudinary
+      String? photoUrl;
+      if (widget.dasar.foto != null) {
+        photoUrl = await CloudinaryService.instance.uploadImage(
+          widget.dasar.foto!,
+        );
+      }
 
-    // TODO: kirim menu + resep (_rows) ke API di sini.
-    Navigator.pop(context, menu); // dikembalikan ke langkah 1 -> daftar menu
+      // 2) simpan menu
+      await MenuService.instance.addMenu(
+        name: widget.dasar.name,
+        categoryKey: widget.dasar.categoryKey,
+        price: widget.dasar.price,
+        photoUrl: photoUrl,
+        recipe: _rows
+            .map(
+              (r) => RecipeLine(
+            ingredientId: r.bahan!.id,
+            name: r.bahan!.name,
+            qty: r.qtyValue,
+            unit: r.bahan!.unit,
+          ),
+        )
+            .toList(),
+      );
+      if (!mounted) return;
+
+      _showSuccessToast(messenger);
+      Navigator.pop(context, true); // -> langkah 1 -> daftar menu
+    } on ServiceException catch (e) {
+      _pesan(e.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showSuccessToast(ScaffoldMessengerState messenger) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.toastBg,
+          elevation: 6,
+          duration: const Duration(seconds: 3),
+          margin: const EdgeInsets.fromLTRB(25, 0, 25, 24),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          content: const Row(
+            children: [
+              Icon(Icons.check, size: 20, color: AppColors.toastCheck),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Menu berhasil ditambahkan',
+                  style: TextStyle(fontSize: 14, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 
   // ---------- Format ----------
@@ -168,9 +252,6 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
     }
     return 'Rp $buf';
   }
-
-  static String _persen(double v) =>
-      '${v.toStringAsFixed(1).replaceAll('.', ',')}%';
 
   // =====================================================
   // BUILD
@@ -187,7 +268,7 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
         titleSpacing: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _saving ? null : () => Navigator.pop(context),
         ),
         title: const Text(
           'Tambahkan Menu Baru',
@@ -204,7 +285,7 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
             Expanded(
               child: SingleChildScrollView(
                 keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
+                ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(25, 20, 25, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,10 +294,10 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
                     const SizedBox(height: 18),
                     _buildSummaryCard(),
                     const SizedBox(height: 20),
-                    Row(
+                    const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
                           'Rincian Resep',
                           style: TextStyle(
@@ -304,7 +385,7 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
       color: AppColors.peach,
       child: const Icon(Icons.restaurant_menu, color: AppColors.brown),
     );
-    final path = widget.dasar.imagePath;
+    final foto = widget.dasar.foto;
 
     return Container(
       padding: const EdgeInsets.all(4),
@@ -320,12 +401,12 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
             child: SizedBox(
               width: 63,
               height: 63,
-              child: path != null
+              child: foto != null
                   ? Image.file(
-                      File(path),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => fallback,
-                    )
+                foto,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => fallback,
+              )
                   : fallback,
             ),
           ),
@@ -345,7 +426,7 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
                   ),
                 ),
                 Text(
-                  widget.dasar.category,
+                  menuCategoryByKey(widget.dasar.categoryKey).label,
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.lightSubtitle,
@@ -416,7 +497,7 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
                 ),
                 Container(width: 1, color: _border),
                 SizedBox(
-                  width: 78,
+                  width: 90,
                   child: Row(
                     children: [
                       Expanded(
@@ -525,28 +606,9 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
     );
   }
 
-  // ---------- Panel bawah: biaya + food cost + tombol ----------
+  // ---------- Panel bawah: jumlah bahan + tombol ----------
   Widget _buildBottomPanel() {
-    final fc = _foodCost;
-
-    Color fcBg = _cardBg;
-    Color fcFg = _fcTitle;
-    if (fc != null) {
-      switch (foodCostStatusOf(fc)) {
-        case FoodCostStatus.aman:
-          fcBg = AppColors.safeBg;
-          fcFg = AppColors.green;
-          break;
-        case FoodCostStatus.waspada:
-          fcBg = AppColors.warningStatusBg;
-          fcFg = AppColors.warningStatusText;
-          break;
-        case FoodCostStatus.kritis:
-          fcBg = AppColors.exhaustedStatusBg;
-          fcFg = AppColors.red;
-          break;
-      }
-    }
+    final terisi = _rows.where((r) => r.bahan != null).length;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(25, 14, 25, 20),
@@ -561,11 +623,11 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Rata-Rata Biaya per Porsi',
+                'Bahan dalam resep',
                 style: TextStyle(fontSize: 13.5, color: AppColors.brownDark),
               ),
               Text(
-                _rupiah(_totalBiaya),
+                '$terisi bahan',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -574,53 +636,12 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: fcBg,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: fcFg.withOpacity(0.5)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Food Cost',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: fcFg,
-                  ),
-                ),
-                const Spacer(),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      fc == null ? '-' : _persen(fc),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                    Text(
-                      'dari ${_rupiah(widget.dasar.price)}',
-                      style: TextStyle(fontSize: 11.5, color: fcFg),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             height: 54,
             child: ElevatedButton(
-              onPressed: _valid ? _submit : null,
+              onPressed: (_valid && !_saving) ? _submit : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _stepActive,
                 foregroundColor: Colors.white,
@@ -631,9 +652,21 @@ class _TambahMenuResepPageState extends State<TambahMenuResepPage> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text(
+              child: _saving
+                  ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
+              )
+                  : const Text(
                 'Tambahkan Menu',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
