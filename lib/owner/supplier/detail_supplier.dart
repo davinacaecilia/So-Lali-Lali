@@ -1,231 +1,178 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../constants/ingredient_options.dart' show formatQty;
+import '../../constants/supplier_options.dart';
+import '../../models/ingredient.dart';
+import '../../models/supplier_data.dart';
+import '../../services/ingredient_service.dart';
+import '../../services/supplier_service.dart';
 import '../partials/colors.dart';
-import 'popup_ubahharga.dart';
-import 'edit_supplier.dart';
 
-// ===== Model =====
+// ===== Model tampilan =====
 enum StatusStok { aman, menipis, habis }
 
 class BahanSupplier {
+  final String? ingredientId;
   final String nama;
   final String kategori;
-  final int harga;
+  final int harga; // rupiah per satuan
   final String satuan;
-  final int stok;
-  final int stokMinimum;
+  final double stok; // dalam satuan bahan (mis. kg)
+  final double stokMinimum;
+  final String? stokText; // mis. "6 L" (siap tampil)
   final bool utama;
 
   const BahanSupplier({
+    this.ingredientId,
     required this.nama,
     this.kategori = 'Lainnya',
     required this.harga,
     required this.satuan,
     required this.stok,
     required this.stokMinimum,
+    this.stokText,
     this.utama = false,
   });
 
   StatusStok get status {
     if (stok <= 0) return StatusStok.habis;
-    if (stok <= stokMinimum) return StatusStok.menipis;
+    if (stok < stokMinimum) return StatusStok.menipis;
     return StatusStok.aman;
   }
 
+  String get stokLabel => stokText ?? '$stok $satuan';
+
   BahanSupplier copyWith({int? harga, bool? utama}) => BahanSupplier(
-        nama: nama,
-        kategori: kategori,
-        harga: harga ?? this.harga,
-        satuan: satuan,
-        stok: stok,
-        stokMinimum: stokMinimum,
-        utama: utama ?? this.utama,
-      );
+    ingredientId: ingredientId,
+    nama: nama,
+    kategori: kategori,
+    harga: harga ?? this.harga,
+    satuan: satuan,
+    stok: stok,
+    stokMinimum: stokMinimum,
+    stokText: stokText,
+    utama: utama ?? this.utama,
+  );
 }
-
-String _rupiah(int n) {
-  final s = n.toString();
-  final buf = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) buf.write('.');
-    buf.write(s[i]);
-  }
-  return 'Rp $buf';
-}
-
-// ===== Data dummy (dipakai kalau parameter `bahan` tidak diisi) =====
-const _dataDummy = [
-  BahanSupplier(
-      nama: 'Susu UHT Full Cream',
-      kategori: 'Susu dan Olahan',
-      harga: 18000,
-      satuan: 'liter',
-      stok: 6,
-      stokMinimum: 10,
-      utama: true),
-  BahanSupplier(
-      nama: 'Mentega',
-      kategori: 'Susu dan Olahan',
-      harga: 95000,
-      satuan: 'kg',
-      stok: 2,
-      stokMinimum: 5,
-      utama: true),
-  BahanSupplier(
-      nama: 'Keju Mozzarella',
-      kategori: 'Susu dan Olahan',
-      harga: 120000,
-      satuan: 'kg',
-      stok: 9,
-      stokMinimum: 5),
-  BahanSupplier(
-      nama: 'Tepung Terigu',
-      kategori: 'Bahan Kering',
-      harga: 14000,
-      satuan: 'kg',
-      stok: 16,
-      stokMinimum: 10),
-  BahanSupplier(
-      nama: 'Fillet Ayam',
-      kategori: 'Daging',
-      harga: 45000,
-      satuan: 'kg',
-      stok: 0,
-      stokMinimum: 5),
-];
 
 class DetailSupplierPage extends StatefulWidget {
-  final String nama;
-  final String pic;
-  final String telp;
-  final String email;
-  final String alamat;
-  final String termin;
+  /// id dokumen supplier di Firestore
   final String supplierId;
-  final bool aktif;
 
-  /// Daftar bahan supplier.
-  /// - tidak diisi (null)  -> pakai data dummy (tampilan gambar 2)
-  /// - diisi `const []`    -> kosong (tampilan gambar 1)
-  final List<BahanSupplier>? bahan;
-
-  const DetailSupplierPage({
-    super.key,
-    required this.nama,
-    required this.pic,
-    required this.telp,
-    this.email = 'order@sumberpanganjaya.co.id',
-    this.alamat = 'Jl. Industri No. 21, Kawasan Industri',
-    this.termin = '14 hari',
-    this.supplierId = 'SPJ-041',
-    this.aktif = true,
-    this.bahan,
-  });
+  const DetailSupplierPage({super.key, required this.supplierId});
 
   @override
   State<DetailSupplierPage> createState() => _DetailSupplierPageState();
 }
 
 class _DetailSupplierPageState extends State<DetailSupplierPage> {
-  late final List<BahanSupplier> _bahan;
+  SupplierData? _supplier;
+  List<SupplierItem> _items = [];
+  List<Ingredient> _ingredients = [];
 
-  // Data kontak disimpan di state supaya bisa berubah setelah diedit.
-  late String _nama;
-  late String _pic;
-  late String _telp;
-  late String _email;
-  late String _alamat;
+  bool _supplierLoaded = false;
+  bool _itemsLoaded = false;
+  bool _ingredientsLoaded = false;
+  String? _error;
+
+  final List<StreamSubscription<dynamic>> _subs = [];
 
   @override
   void initState() {
     super.initState();
-    _bahan = List.of(widget.bahan ?? _dataDummy);
-    _nama = widget.nama;
-    _pic = widget.pic;
-    _telp = widget.telp;
-    _email = widget.email;
-    _alamat = widget.alamat;
-  }
-
-  String get _inisial => _nama
-      .split(' ')
-      .where((e) => e.isNotEmpty)
-      .skip(1)
-      .take(2)
-      .map((e) => e[0].toUpperCase())
-      .join();
-
-  int get _perluDipesan =>
-      _bahan.where((b) => b.status != StatusStok.aman).length;
-
-  /// Ikon pulpen di "Informasi Kontak": buka halaman Edit Supplier.
-  Future<void> _editKontak() async {
-    final hasil = await Navigator.push<EditSupplierResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => EditSupplierPage(
-          nama: _nama,
-          pic: _pic,
-          telp: _telp,
-          email: _email,
-          alamat: _alamat,
-          // Daftar bahan ada di halaman ini, jadi cukup kembali.
-          onAturBahan: () => Navigator.pop(context),
-        ),
+    _subs.add(
+      SupplierService.instance.watchOne(widget.supplierId).listen(
+            (s) {
+          if (!mounted) return;
+          setState(() {
+            _supplier = s;
+            _supplierLoaded = true;
+          });
+        },
+        onError: _onError,
       ),
     );
-    if (!mounted || hasil == null) return;
-
-    if (hasil.dihapus) {
-      // Supplier dihapus: tutup halaman detail dan teruskan hasilnya.
-      Navigator.pop(context, hasil);
-      return;
-    }
-
-    setState(() {
-      _nama = hasil.nama;
-      _pic = hasil.pic;
-      _telp = hasil.telp;
-      _email = hasil.email;
-      _alamat = hasil.alamat;
-    });
-  }
-
-  /// Tombol "+ Tambah" dan "Tambah Bahan".
-  /// TODO: buka halaman tambah bahan, lalu setState(() => _bahan.add(hasil)).
-  void _tambahBahan() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Halaman tambah bahan belum dibuat')),
+    _subs.add(
+      SupplierService.instance.watchItems(widget.supplierId).listen(
+            (list) {
+          if (!mounted) return;
+          setState(() {
+            _items = list;
+            _itemsLoaded = true;
+          });
+        },
+        onError: _onError,
+      ),
+    );
+    _subs.add(
+      IngredientService.instance.watchAll().listen(
+            (list) {
+          if (!mounted) return;
+          setState(() {
+            _ingredients = list;
+            _ingredientsLoaded = true;
+          });
+        },
+        onError: _onError,
+      ),
     );
   }
 
-  /// Ketuk salah satu bahan: buka popup Ubah Harga.
-  Future<void> _ubahHarga(int index) async {
-    final b = _bahan[index];
-    final hasil = await UbahHargaSheet.show(
-      context,
-      namaBahan: b.nama,
-      kategori: b.kategori,
-      satuan: b.satuan,
-      hargaAwal: b.harga,
-      utama: b.utama,
-      namaSupplier: _nama,
-      idSupplier: widget.supplierId,
-    );
-    if (!mounted || hasil == null) return;
-    setState(() {
-      if (hasil.hapus) {
-        _bahan.removeAt(index);
-      } else {
-        _bahan[index] = b.copyWith(harga: hasil.harga, utama: hasil.utama);
-      }
-    });
+  void _onError(Object e) {
+    debugPrint('detail supplier error: $e');
+    if (!mounted) return;
+    setState(() => _error = 'Gagal memuat data supplier.');
   }
 
   @override
+  void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    super.dispose();
+  }
+
+  /// Gabungkan item supplier dengan data bahan (nama, kategori, satuan, stok).
+  List<BahanSupplier> get _bahan {
+    final byId = {for (final i in _ingredients) i.id: i};
+    final list = <BahanSupplier>[];
+
+    for (final it in _items) {
+      final ing = byId[it.ingredientId];
+      if (ing == null) continue; // bahan sudah dihapus
+      list.add(
+        BahanSupplier(
+          ingredientId: ing.id,
+          nama: ing.name,
+          kategori: ing.category.label,
+          harga: it.price,
+          satuan: ing.unit.label,
+          stok: ing.totalStock / ing.unit.factor,
+          stokMinimum: ing.minStock / ing.unit.factor,
+          stokText: formatQty(ing.totalStock, ing.unit),
+          utama: ing.mainSupplierId == widget.supplierId,
+        ),
+      );
+    }
+    list.sort((a, b) => a.nama.toLowerCase().compareTo(b.nama.toLowerCase()));
+    return list;
+  }
+
+  void _pesan(String teks) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(teks)));
+  }
+
+  // ------------------------------------------------------------
+  // BUILD
+  // ------------------------------------------------------------
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final punyaBahan = _bahan.isNotEmpty;
 
     return Theme(
       data: theme.copyWith(
@@ -236,32 +183,61 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
         body: Column(
           children: [
             _Header(onBack: () => Navigator.pop(context)),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(12, 18, 12, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildProfil(),
-                    const SizedBox(height: 16),
-                    _buildTombolKontak(),
-                    const SizedBox(height: 22),
-                    _buildInfoKontak(),
-                    const SizedBox(height: 22),
-                    _buildBahan(punyaBahan),
-                  ],
-                ),
-              ),
-            ),
-            _buildBottomPO(punyaBahan),
+            Expanded(child: _buildBody()),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildBody() {
+    if (_error != null) return _pesanTengah(_error!);
+
+    if (!(_supplierLoaded && _itemsLoaded && _ingredientsLoaded)) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.orangeAccent),
+      );
+    }
+
+    final s = _supplier;
+    if (s == null || s.isDeleted) return _pesanTengah('Supplier tidak ditemukan.');
+
+    final bahan = _bahan;
+    final punyaBahan = bahan.isNotEmpty;
+
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(12, 18, 12, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildProfil(s),
+                const SizedBox(height: 16),
+                _buildTombolKontak(),
+                const SizedBox(height: 22),
+                _buildInfoKontak(s),
+                const SizedBox(height: 22),
+                _buildBahan(bahan),
+              ],
+            ),
+          ),
+        ),
+        _buildBottomPO(punyaBahan),
+      ],
+    );
+  }
+
+  Widget _pesanTengah(String teks) {
+    return Center(
+      child: Text(teks,
+          style: const TextStyle(fontSize: 14, color: AppColors.mutedText)),
+    );
+  }
+
   // ===== Profil =====
-  Widget _buildProfil() {
+  Widget _buildProfil(SupplierData s) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 13),
       child: Row(
@@ -275,7 +251,7 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
               color: AppColors.iconBox,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Text(_inisial,
+            child: Text(supplierInitials(s.name),
                 style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -286,21 +262,21 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_nama,
+                Text(s.name,
                     style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textDark)),
                 const SizedBox(height: 2),
-                Text('PIC: $_pic · $_telp',
+                Text('PIC: ${s.pic} · ${s.phone}',
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.neutralText)),
                 const SizedBox(height: 4),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: widget.aktif
+                    color: s.isActive
                         ? AppColors.safeTagBg
                         : AppColors.exhaustedStatusBg,
                     borderRadius: BorderRadius.circular(12),
@@ -308,17 +284,16 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(widget.aktif ? Icons.check : Icons.close,
+                      Icon(s.isActive ? Icons.check : Icons.close,
                           size: 11,
-                          color: widget.aktif
-                              ? AppColors.green
-                              : AppColors.red),
+                          color:
+                          s.isActive ? AppColors.green : AppColors.red),
                       const SizedBox(width: 3),
-                      Text(widget.aktif ? 'Aktif' : 'Nonaktif',
+                      Text(s.isActive ? 'Aktif' : 'Nonaktif',
                           style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: widget.aktif
+                              color: s.isActive
                                   ? AppColors.green
                                   : AppColors.red)),
                     ],
@@ -362,7 +337,7 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
       child: Row(
         children: [
           tombol(Icons.call, 'Telepon', () {
-            // TODO: buka dialer (url_launcher: tel:$_telp)
+            // TODO: buka dialer (url_launcher: tel:)
           }),
           const SizedBox(width: 12),
           tombol(Icons.chat, 'WhatsApp', () {
@@ -395,25 +370,25 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
   }
 
   // ===== Informasi Kontak =====
-  Widget _buildInfoKontak() {
+  Widget _buildInfoKontak(SupplierData s) {
     Widget baris(String label, String value) => Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 14, color: AppColors.neutralText)),
-              const SizedBox(width: 24),
-              Expanded(
-                child: Text(value,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                        fontSize: 14, color: AppColors.textDark)),
-              ),
-            ],
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 14, color: AppColors.neutralText)),
+          const SizedBox(width: 24),
+          Expanded(
+            child: Text(value,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                    fontSize: 14, color: AppColors.textDark)),
           ),
-        );
+        ],
+      ),
+    );
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
@@ -432,7 +407,8 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
           _sectionTitle(
             'Informasi Kontak',
             GestureDetector(
-              onTap: _editKontak,
+              // TODO (tahap edit): buka halaman Edit Supplier
+              onTap: () => _pesan('Edit supplier dikerjakan di tahap berikutnya'),
               behavior: HitTestBehavior.opaque,
               child: const Padding(
                 padding: EdgeInsets.all(4),
@@ -442,26 +418,31 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
             ),
           ),
           const SizedBox(height: 14),
-          baris('PIC', _pic),
-          baris('Telepon', _telp),
-          baris('Email', _email),
-          baris('Alamat', _alamat),
-          baris('Termin Pembayaran', widget.termin),
+          baris('PIC', s.pic),
+          baris('Telepon', s.phone),
+          baris('Email', s.email),
+          baris('Alamat', s.address),
+          baris('Termin Pembayaran', s.paymentTerm),
         ],
       ),
     );
   }
 
   // ===== Bahan yang Disuplai =====
-  Widget _buildBahan(bool punyaBahan) {
+  Widget _buildBahan(List<BahanSupplier> bahan) {
+    final perluDipesan =
+        bahan.where((b) => b.status != StatusStok.aman).length;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           _sectionTitle(
-            'Bahan yang Disuplai (${_bahan.length})',
+            'Bahan yang Disuplai (${bahan.length})',
             GestureDetector(
-              onTap: _tambahBahan,
+              // TODO (tahap edit): tambah bahan ke supplier ini
+              onTap: () =>
+                  _pesan('Menambah bahan ke supplier dikerjakan di tahap berikutnya'),
               child: const Text('+ Tambah',
                   style: TextStyle(
                       fontSize: 13.5,
@@ -470,13 +451,15 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
             ),
           ),
           const SizedBox(height: 14),
-          if (punyaBahan) ...[
-            if (_perluDipesan > 0) _buildBannerInfo(),
-            ..._bahan.asMap().entries.map((e) => _BahanTile(
-                  bahan: e.value,
-                  isLast: e.key == _bahan.length - 1,
-                  onTap: () => _ubahHarga(e.key),
-                )),
+          if (bahan.isNotEmpty) ...[
+            if (perluDipesan > 0) _buildBannerInfo(perluDipesan),
+            ...bahan.asMap().entries.map((e) => _BahanTile(
+              bahan: e.value,
+              isLast: e.key == bahan.length - 1,
+              // TODO (tahap edit): buka popup Ubah Harga
+              onTap: () =>
+                  _pesan('Ubah harga dikerjakan di tahap berikutnya'),
+            )),
           ] else
             _buildEmptyState(),
         ],
@@ -484,7 +467,7 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
     );
   }
 
-  Widget _buildBannerInfo() {
+  Widget _buildBannerInfo(int jumlah) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
@@ -498,7 +481,7 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
         children: [
           const Icon(Icons.info_outline, size: 18, color: AppColors.infoText),
           const SizedBox(width: 8),
-          Text('$_perluDipesan bahan perlu dipesan',
+          Text('$jumlah bahan perlu dipesan',
               style: const TextStyle(fontSize: 13, color: AppColors.infoText)),
         ],
       ),
@@ -542,7 +525,8 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
           ),
           const SizedBox(height: 18),
           OutlinedButton.icon(
-            onPressed: _tambahBahan,
+            onPressed: () =>
+                _pesan('Menambah bahan ke supplier dikerjakan di tahap berikutnya'),
             icon: const Icon(Icons.add, size: 18, color: AppColors.barDark),
             label: const Text('Tambah Bahan',
                 style: TextStyle(
@@ -582,14 +566,12 @@ class _DetailSupplierPageState extends State<DetailSupplierPage> {
               height: 50,
               child: ElevatedButton.icon(
                 onPressed: punyaBahan
-                    ? () {
-                        // TODO: buat purchase order
-                      }
+                    ? () => _pesan('Pembuatan PO dikerjakan di tahap berikutnya')
                     : null,
                 icon: const Icon(Icons.add_shopping_cart, size: 20),
                 label: const Text('Buat Purchase Order',
                     style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                    TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   elevation: 0,
                   backgroundColor: AppColors.orangeAccent,
@@ -626,7 +608,7 @@ class _BahanTile extends StatelessWidget {
           border: isLast
               ? null
               : const Border(
-                  bottom: BorderSide(color: AppColors.rowDivider, width: 1.5)),
+              bottom: BorderSide(color: AppColors.rowDivider, width: 1.5)),
         ),
         child: Row(
           children: [
@@ -662,7 +644,7 @@ class _BahanTile extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 3),
-                  Text('${_rupiah(bahan.harga)} / ${bahan.satuan}',
+                  Text('${formatRupiah(bahan.harga)} / ${bahan.satuan}',
                       style: const TextStyle(
                           fontSize: 12.5, color: AppColors.summarySubtitle)),
                 ],
@@ -722,7 +704,7 @@ class _StatusPill extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: fg),
           const SizedBox(width: 4),
-          Text('$label (${bahan.stok} ${bahan.satuan})',
+          Text('$label (${bahan.stokLabel})',
               style: TextStyle(
                   fontSize: 11.5, fontWeight: FontWeight.w600, color: fg)),
         ],

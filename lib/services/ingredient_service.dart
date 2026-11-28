@@ -39,6 +39,26 @@ class IngredientService {
       .map((s) =>
       s.docs.map(Batch.fromDoc).where((b) => b.quantity > 0).toList());
 
+  /// Jumlah menu aktif yang memakai bahan ini di resepnya.
+  Future<int> countRecipesUsing(String ingredientId) async {
+    try {
+      final menus = await _db.collection('menus').get();
+      var count = 0;
+      for (final m in menus.docs) {
+        final data = m.data();
+        if (data['isActive'] == false) continue;
+        final recipe = (data['recipe'] as List?) ?? const [];
+        final used = recipe.any(
+              (e) => e is Map && e['ingredientId'] == ingredientId,
+        );
+        if (used) count++;
+      }
+      return count;
+    } on FirebaseException catch (e) {
+      throw ServiceException('Gagal memeriksa resep: ${e.message ?? e.code}');
+    }
+  }
+
   // ---------- TULIS ----------
 
   /// minStock dan initialStock dalam satuan yang dipilih (mis. 10 untuk 10 kg).
@@ -108,8 +128,9 @@ class IngredientService {
     }
   }
 
-  /// Satuan dan kode tidak bisa diubah setelah bahan dibuat.
+  /// Ubah data bahan. Satuan dan kode tidak bisa diubah.
   /// [unitKey] hanya dipakai untuk mengonversi minStock.
+  /// [photoUrl] mengganti foto; [removePhoto] menghapus foto.
   Future<void> updateIngredient(
       String id, {
         required String name,
@@ -118,15 +139,21 @@ class IngredientService {
         required double minStock,
         required int shelfLifeValue,
         required String shelfLifeUnit,
+        String? photoUrl,
+        bool removePhoto = false,
       }) async {
+    if (name.trim().isEmpty) throw ServiceException('Nama bahan wajib diisi.');
     final unit = unitByKey(unitKey);
+
     try {
       await _col.doc(id).update({
-        'name': name,
+        'name': name.trim(),
         'categoryKey': categoryKey,
         'minStock': (minStock * unit.factor).round(),
         'shelfLifeValue': shelfLifeValue,
         'shelfLifeUnit': shelfLifeUnit,
+        if (photoUrl != null) 'photoUrl': photoUrl,
+        if (photoUrl == null && removePhoto) 'photoUrl': FieldValue.delete(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } on FirebaseException catch (e) {
@@ -134,15 +161,35 @@ class IngredientService {
     }
   }
 
-  Future<void> deactivate(String id) async {
+  /// Hapus bahan: bahan dinonaktifkan (riwayat stok dan batch tetap tersimpan)
+  /// dan barisnya dikeluarkan dari resep semua menu. Semua dalam satu batch
+  /// penulisan, jadi berhasil seluruhnya atau tidak sama sekali.
+  Future<void> deleteIngredient(String id) async {
     try {
-      await _col.doc(id).update({
+      final menus = await _db.collection('menus').get();
+      final batch = _db.batch();
+
+      for (final m in menus.docs) {
+        final raw = (m.data()['recipe'] as List?) ?? const [];
+        final kept = raw
+            .where((e) => !(e is Map && e['ingredientId'] == id))
+            .toList();
+        if (kept.length != raw.length) {
+          batch.update(m.reference, {
+            'recipe': kept,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      batch.update(_col.doc(id), {
         'isActive': false,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      await batch.commit();
     } on FirebaseException catch (e) {
-      throw ServiceException(
-          'Gagal menonaktifkan bahan: ${e.message ?? e.code}');
+      throw ServiceException('Gagal menghapus bahan: ${e.message ?? e.code}');
     }
   }
 

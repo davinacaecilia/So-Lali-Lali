@@ -485,14 +485,7 @@ class _BahanTile extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => InformasiBahanPage(
-                name: item.name,
-                category: item.category,
-                status: item.status,
-                icon: item.icon,
-                imageUrl: item.photoUrl,
-                unit: item.quantity.split(' ').skip(1).join(' '),
-              ),
+              builder: (_) => InformasiBahanPage(ingredientId: item.id),
             ),
           );
         },

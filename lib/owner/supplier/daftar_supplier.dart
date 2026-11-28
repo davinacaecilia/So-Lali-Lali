@@ -1,56 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../partials/colors.dart';
-import '../partials/bottom_nav.dart';
-import 'detail_supplier.dart';
+import '../../constants/ingredient_options.dart' show categoryByKey;
+import '../../constants/supplier_options.dart';
+import '../../models/supplier_data.dart';
 import 'tambah_supplier.dart';
-
-class Supplier {
-  final String nama;
-  final String pic;
-  final String telp;
-  final List<String> kategori;
-  final String email;
-  final String alamat;
-  final String termin;
-  final bool aktif;
-
-  /// true untuk supplier yang baru ditambahkan (belum punya bahan).
-  final bool bahanKosong;
-
-  const Supplier(
-    this.nama,
-    this.pic,
-    this.telp,
-    this.kategori, {
-    this.email = 'order@sumberpanganjaya.co.id',
-    this.alamat = 'Jl. Industri No. 21, Kawasan Industri',
-    this.termin = '14 hari',
-    this.aktif = true,
-    this.bahanKosong = false,
-  });
-}
-
-const _dataSupplier = [
-  Supplier('CV Sumber Pangan Jaya', 'Pak Hendra', '0812-3456-7890',
-      ['Bahan Kering', 'Bumbu']),
-  Supplier('CV Sumber Pangan Jaya', 'Pak Hendra', '0812-3456-7890',
-      ['Sayur dan Buah']),
-  Supplier('CV Sumber Pangan Jaya', 'Pak Hendra', '0812-3456-7890',
-      ['Susu dan Olahan']),
-  Supplier('CV Sumber Pangan Jaya', 'Pak Hendra', '0812-3456-7890',
-      ['Minuman']),
-  Supplier('CV Sumber Pangan Jaya', 'Pak Hendra', '0812-3456-7890',
-      ['Bumbu']),
-];
-
-/// Inisial: lewati awalan badan usaha 2 huruf (CV, PT, UD, ...).
-String _inisial(String nama) {
-  final w = nama.split(' ').where((e) => e.isNotEmpty).toList();
-  if (w.isEmpty) return '?';
-  final isi = (w.length > 1 && w.first.length <= 2) ? w.skip(1) : w;
-  return isi.take(2).map((e) => e[0].toUpperCase()).join();
-}
+import '../../services/supplier_service.dart';
+import '../partials/bottom_nav.dart';
+import '../partials/colors.dart';
+import 'detail_supplier.dart';
 
 class DaftarSupplierPage extends StatefulWidget {
   const DaftarSupplierPage({super.key});
@@ -60,50 +19,61 @@ class DaftarSupplierPage extends StatefulWidget {
 }
 
 class _DaftarSupplierPageState extends State<DaftarSupplierPage> {
-  final List<Supplier> _suppliers = List.of(_dataSupplier);
+  List<SupplierData> _suppliers = [];
+  bool _loading = true;
+  String? _error;
+  StreamSubscription<List<SupplierData>>? _sub;
   String _query = '';
 
+  @override
+  void initState() {
+    super.initState();
+    _sub = SupplierService.instance.watchAll().listen(
+          (list) {
+        if (!mounted) return;
+        setState(() {
+          _suppliers = list;
+          _loading = false;
+          _error = null;
+        });
+      },
+      onError: (e) {
+        debugPrint('supplier watchAll error: $e');
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Gagal memuat data supplier.';
+        });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  void _pesan(String teks) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(teks)));
+  }
+
   Future<void> _tambahSupplier() async {
-    final hasil = await Navigator.push<TambahSupplierResult>(
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const TambahSupplierPage()),
     );
-    if (!mounted || hasil == null) return;
-
-    setState(() {
-      _suppliers.insert(
-        0,
-        Supplier(
-          hasil.nama,
-          hasil.pic,
-          hasil.telp,
-          hasil.kategori,
-          email: hasil.email,
-          alamat: hasil.alamat,
-          termin: hasil.termin,
-          aktif: hasil.aktif,
-          bahanKosong: true,
-        ),
-      );
-    });
-    // Toast sukses ditampilkan dari halaman Tambah Supplier langkah 2.
+    // Daftar diperbarui otomatis oleh stream Firestore.
   }
 
-  void _bukaDetail(Supplier s) {
+  void _bukaDetail(SupplierData s) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => DetailSupplierPage(
-          nama: s.nama,
-          pic: s.pic,
-          telp: s.telp,
-          email: s.email,
-          alamat: s.alamat,
-          termin: s.termin,
-          aktif: s.aktif,
-          // supplier baru: kosong. Lainnya: pakai data dummy.
-          bahan: s.bahanKosong ? const [] : null,
-        ),
+        builder: (_) => DetailSupplierPage(supplierId: s.id),
       ),
     );
   }
@@ -111,7 +81,7 @@ class _DaftarSupplierPageState extends State<DaftarSupplierPage> {
   @override
   Widget build(BuildContext context) {
     final list = _suppliers
-        .where((s) => s.nama.toLowerCase().contains(_query.toLowerCase()))
+        .where((s) => s.name.toLowerCase().contains(_query.toLowerCase()))
         .toList();
 
     final theme = Theme.of(context);
@@ -128,29 +98,9 @@ class _DaftarSupplierPageState extends State<DaftarSupplierPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(25, 22, 25, 16),
               child:
-                  _SearchField(onChanged: (v) => setState(() => _query = v)),
+              _SearchField(onChanged: (v) => setState(() => _query = v)),
             ),
-            Expanded(
-              child: list.isEmpty
-                  ? const Center(
-                      child: Text('Supplier tidak ditemukan',
-                          style: TextStyle(
-                              fontSize: 14, color: AppColors.mutedText)),
-                    )
-                  : ListView.separated(
-                      // ruang bawah agar item terakhir tidak tertutup tombol +
-                      padding: const EdgeInsets.only(bottom: 90),
-                      itemCount: list.length,
-                      separatorBuilder: (_, __) => const Divider(
-                          height: 1,
-                          thickness: 1,
-                          color: AppColors.navDivider),
-                      itemBuilder: (_, i) => _SupplierTile(
-                        supplier: list[i],
-                        onTap: () => _bukaDetail(list[i]),
-                      ),
-                    ),
-            ),
+            Expanded(child: _buildBody(list)),
           ],
         ),
         floatingActionButton: SizedBox(
@@ -166,6 +116,51 @@ class _DaftarSupplierPageState extends State<DaftarSupplierPage> {
           ),
         ),
         bottomNavigationBar: const OwnerBottomNav(currentIndex: 2),
+      ),
+    );
+  }
+
+  Widget _buildBody(List<SupplierData> list) {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.orangeAccent),
+      );
+    }
+    if (_error != null) {
+      return Center(
+        child: Text(_error!,
+            style: const TextStyle(fontSize: 14, color: AppColors.mutedText)),
+      );
+    }
+    if (_suppliers.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 40),
+          child: Text(
+            'Belum ada supplier.\nTekan tombol + untuk menambahkan.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 14, height: 1.5, color: AppColors.mutedText),
+          ),
+        ),
+      );
+    }
+    if (list.isEmpty) {
+      return const Center(
+        child: Text('Supplier tidak ditemukan',
+            style: TextStyle(fontSize: 14, color: AppColors.mutedText)),
+      );
+    }
+
+    return ListView.separated(
+      // ruang bawah agar item terakhir tidak tertutup tombol +
+      padding: const EdgeInsets.only(bottom: 90),
+      itemCount: list.length,
+      separatorBuilder: (_, __) => const Divider(
+          height: 1, thickness: 1, color: AppColors.navDivider),
+      itemBuilder: (_, i) => _SupplierTile(
+        supplier: list[i],
+        onTap: () => _bukaDetail(list[i]),
       ),
     );
   }
@@ -256,9 +251,9 @@ class _SearchField extends StatelessWidget {
   const _SearchField({required this.onChanged});
 
   OutlineInputBorder _border() => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.fieldBorder),
-      );
+    borderRadius: BorderRadius.circular(12),
+    borderSide: const BorderSide(color: AppColors.fieldBorder),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -284,12 +279,15 @@ class _SearchField extends StatelessWidget {
 
 // ===== Item Supplier =====
 class _SupplierTile extends StatelessWidget {
-  final Supplier supplier;
+  final SupplierData supplier;
   final VoidCallback onTap;
   const _SupplierTile({required this.supplier, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final kategori =
+    supplier.categoryKeys.map((k) => categoryByKey(k).label).toList();
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -305,7 +303,7 @@ class _SupplierTile extends StatelessWidget {
                 color: AppColors.iconBox,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Text(_inisial(supplier.nama),
+              child: Text(supplierInitials(supplier.name),
                   style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -316,35 +314,37 @@ class _SupplierTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(supplier.nama,
+                  Text(supplier.name,
                       style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textDark)),
                   const SizedBox(height: 2),
-                  Text('PIC: ${supplier.pic} · ${supplier.telp}',
+                  Text('PIC: ${supplier.pic} · ${supplier.phone}',
                       style: const TextStyle(
                           fontSize: 13.5, color: AppColors.neutralText)),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: supplier.kategori
-                        .map((k) => Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppColors.chipBg,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(k,
-                                  style: const TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.deepBrown)),
-                            ))
-                        .toList(),
-                  ),
+                  if (kategori.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: kategori
+                          .map((k) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.chipBg,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(k,
+                            style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.deepBrown)),
+                      ))
+                          .toList(),
+                    ),
+                  ],
                 ],
               ),
             ),

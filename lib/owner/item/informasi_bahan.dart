@@ -1,31 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../constants/ingredient_options.dart' show cloudinaryResize;
+import '../../constants/ingredient_options.dart';
+import '../../models/ingredient.dart';
+import '../../services/ingredient_service.dart';
 import '../partials/colors.dart';
 import 'edit_bahan.dart';
-import 'filter_bahan.dart';
-import 'tambah_bahan.dart';
-
-// =====================================================
-// MODEL BATCH
-// =====================================================
-class BatchItem {
-  final String name; // mis. "Batch 02"
-  final double stock;
-  final DateTime expiry;
-
-  const BatchItem({
-    required this.name,
-    required this.stock,
-    required this.expiry,
-  });
-}
-
-/// Data contoh (sama seperti desain). Nanti ganti dengan data dari API.
-final List<BatchItem> kSampleBatches = [
-  BatchItem(name: 'Batch 02', stock: 4, expiry: DateTime(2026, 11, 28)),
-  BatchItem(name: 'Batch 03', stock: 12, expiry: DateTime(2027, 1, 12)),
-];
+import 'filter_bahan.dart' show StockStatus;
 
 /// Warna tambahan khusus halaman ini
 class _C {
@@ -50,136 +30,192 @@ class _C {
   static const habisFg = AppColors.red;
 }
 
+StockStatus _statusOf(Ingredient i) {
+  if (i.totalStock <= 0) return StockStatus.habis;
+  if (i.totalStock < i.minStock) return StockStatus.menipis;
+  return StockStatus.aman;
+}
+
+IconData _iconFor(String categoryKey) {
+  switch (categoryKey) {
+    case 'bahan_kering':
+      return Icons.grain;
+    case 'susu_olahan':
+      return Icons.local_drink_outlined;
+    case 'daging_unggas':
+      return Icons.kebab_dining;
+    case 'seafood':
+      return Icons.set_meal_outlined;
+    case 'telur':
+      return Icons.egg_outlined;
+    case 'sayur_buah':
+      return Icons.eco_outlined;
+    case 'bumbu_rempah':
+      return Icons.spa_outlined;
+    case 'minyak_lemak':
+      return Icons.water_drop_outlined;
+    case 'minuman_sirup':
+      return Icons.coffee_outlined;
+    case 'bahan_beku':
+      return Icons.ac_unit;
+    default:
+      return Icons.category_outlined;
+  }
+}
+
 // =====================================================
 // HALAMAN
 // =====================================================
-class InformasiBahanPage extends StatelessWidget {
-  final String name;
-  final String category;
-  final String? id;
-  final String unit; // satuan, mis. "kg"
-  final double minStock;
-  final int expiryLimitDays; // batas kadaluwarsa (hari)
-  final StockStatus status;
-  final IconData icon; // dipakai kalau gambar tidak ada
-  final String? imageUrl; // link foto dari Cloudinary
-  final String? imageAsset;
-  final List<BatchItem>? batches;
+class InformasiBahanPage extends StatefulWidget {
+  final String ingredientId;
 
-  /// Batch dianggap "akan kadaluwarsa" jika sisa harinya <= nilai ini.
-  final int warningDays;
-
-  const InformasiBahanPage({
-    super.key,
-    required this.name,
-    required this.category,
-    this.id = 'BBO-WHT-004',
-    this.unit = 'kg',
-    this.minStock = 10,
-    this.expiryLimitDays = 180,
-    this.status = StockStatus.aman,
-    this.icon = Icons.inventory_2_outlined,
-    this.imageUrl,
-    this.imageAsset,
-    this.batches,
-    this.warningDays = 30,
-  });
-
-  // ---------- helper ----------
-  static const _bulan = [
-    'Januari',
-    'Februari',
-    'Maret',
-    'April',
-    'Mei',
-    'Juni',
-    'Juli',
-    'Agustus',
-    'September',
-    'Oktober',
-    'November',
-    'Desember',
-  ];
-
-  static String _fmtDate(DateTime d) =>
-      '${d.day} ${_bulan[d.month - 1]} ${d.year}';
-
-  static String _fmtNum(double v) {
-    final s = v == v.roundToDouble() ? v.toInt().toString() : v.toString();
-    return s.replaceAll('.', ',');
-  }
-
-  static int _daysLeft(DateTime expiry) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final target = DateTime(expiry.year, expiry.month, expiry.day);
-    return target.difference(today).inDays;
-  }
-
-  List<BatchItem> get _batches {
-    final list = List<BatchItem>.from(batches ?? kSampleBatches);
-    list.sort((a, b) => a.expiry.compareTo(b.expiry)); // terdekat dulu
-    return list;
-  }
+  const InformasiBahanPage({super.key, required this.ingredientId});
 
   @override
-  Widget build(BuildContext context) {
-    final list = _batches;
+  State<InformasiBahanPage> createState() => _InformasiBahanPageState();
+}
 
+class _InformasiBahanPageState extends State<InformasiBahanPage> {
+  late final Stream<Ingredient?> _ingredientStream =
+  IngredientService.instance.watchOne(widget.ingredientId);
+  late final Stream<List<Batch>> _batchStream =
+  IngredientService.instance.watchBatches(widget.ingredientId);
+
+  // ---------- aksi ----------
+  Future<void> _edit(Ingredient ing) async {
+    final result = await Navigator.push<EditBahanResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditInformasiBahanPage(ingredient: ing),
+      ),
+    );
+    // Bahan dihapus -> tutup halaman detail, kembali ke daftar.
+    if (result?.deleted == true && mounted) Navigator.pop(context);
+  }
+
+  void _tambahPersediaan() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Penambahan persediaan menyusul (menunggu alur PO / request restock)',
+          ),
+        ),
+      );
+  }
+
+  // ------------------------------------------------------------
+  // BUILD
+  // ------------------------------------------------------------
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(
         children: [
           _buildHeader(context),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(25, 20, 25, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildImage(),
-                  const SizedBox(height: 14),
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontFamily: kFont,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textDark,
-                      height: 1.2,
-                    ),
+            child: StreamBuilder<Ingredient?>(
+              stream: _ingredientStream,
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return _centerMessage('Gagal memuat data bahan.');
+                }
+                if (snap.connectionState == ConnectionState.waiting &&
+                    !snap.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: AppColors.orange),
+                  );
+                }
+                final ing = snap.data;
+                if (ing == null || !ing.isActive) {
+                  return _centerMessage('Bahan tidak ditemukan.');
+                }
+                return _buildContent(ing);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _centerMessage(String text) {
+    return Center(
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontFamily: kFont,
+          fontSize: 14,
+          color: AppColors.neutralText,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(Ingredient ing) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(25, 20, 25, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildImage(ing),
+          const SizedBox(height: 14),
+          Text(
+            ing.name,
+            style: const TextStyle(
+              fontFamily: kFont,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textDark,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'ID: ${ing.code}',
+            style: const TextStyle(
+              fontFamily: kFont,
+              fontSize: 11,
+              color: _C.grey,
+            ),
+          ),
+          const SizedBox(height: 28),
+          _buildDetailHeader(ing),
+          const SizedBox(height: 12),
+          _buildDetailCard(ing),
+          const SizedBox(height: 24),
+          _buildPersediaanHeader(),
+          const SizedBox(height: 12),
+          StreamBuilder<List<Batch>>(
+            stream: _batchStream,
+            builder: (context, snap) {
+              if (snap.hasError) {
+                return _centerMessage('Gagal memuat persediaan.');
+              }
+              if (!snap.hasData) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: CircularProgressIndicator(color: AppColors.orange),
                   ),
-                  if (id != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'ID: $id',
-                      style: const TextStyle(
-                        fontFamily: kFont,
-                        fontSize: 11,
-                        color: _C.grey,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 28),
-                  _buildDetailHeader(context),
-                  const SizedBox(height: 12),
-                  _buildDetailCard(),
-                  const SizedBox(height: 24),
-                  _buildPersediaanHeader(context),
-                  const SizedBox(height: 12),
-                  if (list.isEmpty)
-                    _buildEmptyBatch()
-                  else ...[
-                    _buildSummary(list),
-                    const SizedBox(height: 16),
-                    for (final b in list) ...[
-                      _buildBatchCard(b),
-                      const SizedBox(height: 12),
-                    ],
+                );
+              }
+              final list = snap.data!;
+              if (list.isEmpty) return _buildEmptyBatch();
+
+              return Column(
+                children: [
+                  _buildSummary(ing, list),
+                  const SizedBox(height: 16),
+                  for (final b in list) ...[
+                    _buildBatchCard(b, ing),
+                    const SizedBox(height: 12),
                   ],
                 ],
-              ),
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -235,13 +271,13 @@ class InformasiBahanPage extends StatelessWidget {
   }
 
   // ================= GAMBAR + BADGE STATUS =================
-  Widget _buildImage() {
+  Widget _buildImage(Ingredient ing) {
     late final String label;
     late final IconData badgeIcon;
     late final Color bg;
     late final Color fg;
 
-    switch (status) {
+    switch (_statusOf(ing)) {
       case StockStatus.aman:
         label = 'Stok Aman';
         badgeIcon = Icons.check_circle;
@@ -265,24 +301,17 @@ class InformasiBahanPage extends StatelessWidget {
     // Placeholder (dipakai kalau foto tidak ada / gagal dimuat)
     final fallback = Container(
       color: AppColors.iconBox,
-      child: Icon(icon, size: 56, color: AppColors.brown),
+      child: Icon(_iconFor(ing.categoryKey), size: 56, color: AppColors.brown),
     );
 
-    // Urutan: foto dari jaringan -> aset -> placeholder
     Widget photo = fallback;
-    final url = imageUrl;
+    final url = ing.photoUrl;
     if (url != null && url.isNotEmpty) {
       photo = Image.network(
         cloudinaryResize(url, width: 900),
         fit: BoxFit.cover,
         loadingBuilder: (context, child, progress) =>
         progress == null ? child : fallback,
-        errorBuilder: (_, __, ___) => fallback,
-      );
-    } else if (imageAsset != null) {
-      photo = Image.asset(
-        imageAsset!,
-        fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => fallback,
       );
     }
@@ -342,7 +371,7 @@ class InformasiBahanPage extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailHeader(BuildContext context) {
+  Widget _buildDetailHeader(Ingredient ing) {
     return Column(
       children: [
         Row(
@@ -350,21 +379,7 @@ class InformasiBahanPage extends StatelessWidget {
           children: [
             _sectionTitle('Detail Bahan'),
             InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => EditInformasiBahanPage(
-                      name: name,
-                      category: category,
-                      unit: unit,
-                      minStock: minStock,
-                      expiryLimitDays: expiryLimitDays,
-                      imageAsset: imageAsset,
-                    ),
-                  ),
-                );
-              },
+              onTap: () => _edit(ing),
               child: const Padding(
                 padding: EdgeInsets.all(4),
                 child: Icon(
@@ -382,13 +397,13 @@ class InformasiBahanPage extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailCard() {
+  Widget _buildDetailCard(Ingredient ing) {
     final rows = <List<String>>[
-      ['Nama Bahan', name],
-      ['Kategori Bahan', category],
-      ['Satuan', unit],
-      ['Stok Minimal', '${_fmtNum(minStock)} $unit'],
-      ['Batas Kadaluwarsa', '$expiryLimitDays hari'],
+      ['Nama Bahan', ing.name],
+      ['Kategori Bahan', ing.category.label],
+      ['Satuan', ing.unit.label],
+      ['Stok Minimal', formatQty(ing.minStock, ing.unit)],
+      ['Batas Kadaluwarsa', '${ing.shelfLifeValue} ${ing.shelfLifeUnit}'],
     ];
 
     return Container(
@@ -445,7 +460,7 @@ class InformasiBahanPage extends StatelessWidget {
   }
 
   // ================= PERSEDIAAN =================
-  Widget _buildPersediaanHeader(BuildContext context) {
+  Widget _buildPersediaanHeader() {
     return Column(
       children: [
         Row(
@@ -457,14 +472,7 @@ class InformasiBahanPage extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const TambahBahanBaruPage(),
-                    ),
-                  );
-                },
+                onTap: _tambahPersediaan,
                 child: const SizedBox(
                   width: 42,
                   height: 42,
@@ -480,9 +488,7 @@ class InformasiBahanPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSummary(List<BatchItem> list) {
-    final total = list.fold<double>(0, (sum, b) => sum + b.stock);
-
+  Widget _buildSummary(Ingredient ing, List<Batch> list) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -494,7 +500,7 @@ class InformasiBahanPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Total ${_fmtNum(total)} $unit dalam ${list.length} batch',
+            'Total ${formatQty(ing.totalStock, ing.unit)} dalam ${list.length} batch',
             style: const TextStyle(
               fontFamily: kFont,
               fontSize: 16,
@@ -539,7 +545,7 @@ class InformasiBahanPage extends StatelessWidget {
           ),
           SizedBox(height: 2),
           Text(
-            'Tekan tombol + untuk menambah batch.',
+            'Stok akan muncul setelah barang diterima.',
             style: TextStyle(
               fontFamily: kFont,
               fontSize: 12,
@@ -577,10 +583,10 @@ class InformasiBahanPage extends StatelessWidget {
     );
   }
 
-  Widget _buildBatchCard(BatchItem b) {
-    final days = _daysLeft(b.expiry);
-    final expired = days < 0;
-    final warning = days <= warningDays; // termasuk yang sudah lewat
+  Widget _buildBatchCard(Batch b, Ingredient ing) {
+    final days = b.daysLeft;
+    final expired = b.isExpired;
+    final warning = expired || b.isExpiringSoon;
 
     final body = Padding(
       padding: const EdgeInsets.fromLTRB(15, 14, 15, 12),
@@ -591,7 +597,7 @@ class InformasiBahanPage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                b.name,
+                b.label,
                 style: const TextStyle(
                   fontFamily: kFont,
                   fontSize: 16,
@@ -633,9 +639,9 @@ class InformasiBahanPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          _batchRow('Stok', '${_fmtNum(b.stock)} $unit'),
+          _batchRow('Stok', formatQty(b.quantity, ing.unit)),
           const SizedBox(height: 4),
-          _batchRow('Baik Sebelum', _fmtDate(b.expiry)),
+          _batchRow('Baik Sebelum', formatDateId(b.expiryDate)),
         ],
       ),
     );

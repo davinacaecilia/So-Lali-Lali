@@ -25,6 +25,10 @@ class AuthService {
     switch (role) {
       case 'owner':
         return '/owner';
+      case 'kasir':
+        return '/kasir';
+      case 'kitchen':
+        return '/kitchen';
       default:
         return '/home';
     }
