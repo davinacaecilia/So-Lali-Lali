@@ -15,6 +15,7 @@ class Ingredient {
   final bool isActive;
   final DateTime? nearestExpiry; // kedaluwarsa batch terdekat
   final String? photoUrl; // link foto di Cloudinary (opsional)
+  final String? mainSupplierId; // id supplier utama bahan ini (opsional)
 
   const Ingredient({
     required this.id,
@@ -29,6 +30,7 @@ class Ingredient {
     required this.isActive,
     this.nearestExpiry,
     this.photoUrl,
+    this.mainSupplierId,
   });
 
   factory Ingredient.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -46,6 +48,7 @@ class Ingredient {
       isActive: d['isActive'] ?? true,
       nearestExpiry: (d['nearestExpiry'] as Timestamp?)?.toDate(),
       photoUrl: d['photoUrl'] as String?,
+      mainSupplierId: d['mainSupplierId'] as String?,
     );
   }
 

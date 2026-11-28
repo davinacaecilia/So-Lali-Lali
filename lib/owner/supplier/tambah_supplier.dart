@@ -4,9 +4,6 @@ import 'package:flutter/services.dart';
 import '../partials/colors.dart';
 import 'tambah_supplier(2).dart';
 
-// Supaya halaman lain (mis. daftar_supplier) cukup import file ini.
-export 'tambah_supplier(2).dart' show TambahSupplierResult, BahanBaru;
-
 /// Langkah 1 dari 2: Identitas Perusahaan.
 class TambahSupplierPage extends StatefulWidget {
   const TambahSupplierPage({super.key});
@@ -77,7 +74,7 @@ class _TambahSupplierPageState extends State<TambahSupplierPage> {
       return;
     }
 
-    final hasil = await Navigator.push<TambahSupplierResult>(
+    final hasil = await Navigator.push<String>(
       context,
       MaterialPageRoute(
         builder: (_) => TambahSupplier2Page(

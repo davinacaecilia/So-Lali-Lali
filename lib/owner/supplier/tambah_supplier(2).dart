@@ -1,77 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../../constants/supplier_options.dart';
+import '../../models/ingredient.dart';
+import '../../services/ingredient_service.dart';
+import '../../services/supplier_service.dart';
 import '../partials/colors.dart';
+import 'detail_supplier.dart';
 import 'popup_pilihbahan.dart';
-
-/// true  = daftar bahan terisi 4 bahan contoh (untuk melihat tampilan)
-/// false = daftar mulai kosong (pakai ini kalau sudah dipakai sungguhan)
-const bool kIsiBahanContoh = true;
-
-/// Bahan yang diinput di langkah 2.
-class BahanBaru {
-  final String nama;
-  final int harga;
-  final String satuan;
-  final bool utama; // dijadikan supplier utama untuk bahan ini
-  const BahanBaru({
-    required this.nama,
-    required this.harga,
-    this.satuan = 'kg',
-    this.utama = false,
-  });
-}
-
-/// Hasil akhir form Tambah Supplier (dikirim balik lewat Navigator.pop).
-class TambahSupplierResult {
-  final String nama;
-  final String pic;
-  final String telp;
-  final String email;
-  final String alamat;
-  final String termin;
-  final List<BahanBaru> bahan;
-  final List<String> kategori;
-  final bool aktif;
-
-  const TambahSupplierResult({
-    required this.nama,
-    required this.pic,
-    required this.telp,
-    required this.email,
-    required this.alamat,
-    required this.termin,
-    required this.bahan,
-    this.kategori = const [],
-    this.aktif = true,
-  });
-}
-
-const _bahanContoh = [
-  BahanBaru(nama: 'Biji Kopi Arabika', harga: 22000),
-  BahanBaru(nama: 'Biji Kopi Arabika', harga: 22000),
-  BahanBaru(nama: 'Biji Kopi Arabika', harga: 22000),
-  BahanBaru(nama: 'Biji Kopi Arabika', harga: 22000),
-];
-
-String _rupiah(int n) {
-  final s = n.toString();
-  final buf = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) buf.write('.');
-    buf.write(s[i]);
-  }
-  return 'Rp $buf';
-}
 
 /// Toast sukses (kotak cokelat gelap, ikon centang hijau, aksi "Lihat").
 /// Bisa dipakai ulang di halaman lain.
 void tampilToastSukses(
-  ScaffoldMessengerState messenger,
-  String pesan, {
-  VoidCallback? onLihat,
-  String labelAksi = 'Lihat',
-}) {
+    ScaffoldMessengerState messenger,
+    String pesan, {
+      VoidCallback? onLihat,
+      String labelAksi = 'Lihat',
+    }) {
   messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(
@@ -137,6 +83,15 @@ void tampilToastSukses(
     );
 }
 
+/// Bahan yang dipilih di langkah 2 (belum disimpan).
+class _BahanDipilih {
+  final BahanOption option;
+  final int price; // rupiah per satuan bahan
+  final bool isMain; // dijadikan supplier utama untuk bahan ini
+
+  const _BahanDipilih(this.option, this.price, this.isMain);
+}
+
 class TambahSupplier2Page extends StatefulWidget {
   // Data dari langkah 1
   final String nama;
@@ -159,87 +114,114 @@ class TambahSupplier2Page extends StatefulWidget {
 }
 
 class _TambahSupplier2PageState extends State<TambahSupplier2Page> {
-  static const _opsiTermin = [
-    'Tunai (COD)',
-    '7 hari',
-    '14 hari',
-    '30 hari',
-    '45 hari',
-    '60 hari',
-  ];
-
   String? _termin = '14 hari';
-  late final List<BahanBaru> _bahan;
+  final List<_BahanDipilih> _bahan = [];
+
+  // Daftar bahan asli dari Firestore (realtime)
+  List<Ingredient>? _ingredients;
+  StreamSubscription<List<Ingredient>>? _sub;
+
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _bahan = kIsiBahanContoh ? List.of(_bahanContoh) : [];
+    _sub = IngredientService.instance.watchAll().listen(
+          (list) {
+        if (mounted) setState(() => _ingredients = list);
+      },
+      onError: (e) => debugPrint('bahan watchAll error: $e'),
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   bool get _valid => _termin != null && _bahan.isNotEmpty;
 
-  void _simpan() {
-    if (!_valid) return;
-
-    // Ambil messenger sebelum halaman ditutup, lalu tampilkan toast
-    // (toast tetap muncul di halaman tujuan setelah pop).
-    final messenger = ScaffoldMessenger.of(context);
-
-    Navigator.pop(
-      context,
-      TambahSupplierResult(
-        nama: widget.nama,
-        pic: widget.pic,
-        telp: widget.telp,
-        email: widget.email,
-        alamat: widget.alamat,
-        termin: _termin!,
-        bahan: List.of(_bahan),
-      ),
-    );
-
-    tampilToastSukses(
-      messenger,
-      'Supplier berhasil ditambahkan',
-      onLihat: () {
-        // TODO: arahkan ke detail supplier yang baru ditambahkan
-      },
-    );
+  void _pesan(String teks) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(teks)));
   }
 
-  /// Klik "Tambah Bahan" -> buka popup Pilih Bahan (mode supplier).
+  /// Simpan supplier + bahannya ke Firestore, lalu kembali ke daftar.
+  Future<void> _simpan() async {
+    if (!_valid || _saving) return;
+
+    // Ambil messenger & navigator sebelum halaman ditutup, supaya toast
+    // dan tombol "Lihat" tetap berfungsi setelah pop.
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+
+    setState(() => _saving = true);
+    try {
+      final id = await SupplierService.instance.addSupplier(
+        name: widget.nama,
+        pic: widget.pic,
+        phone: widget.telp,
+        email: widget.email,
+        address: widget.alamat,
+        paymentTerm: _termin!,
+        isActive: true,
+        items: _bahan
+            .map(
+              (b) => SupplierItemInput(
+            ingredientId: b.option.id,
+            price: b.price,
+            isMain: b.isMain,
+          ),
+        )
+            .toList(),
+      );
+      if (!mounted) return;
+
+      nav.pop(id); // -> langkah 1 -> daftar supplier
+
+      tampilToastSukses(
+        messenger,
+        'Supplier berhasil ditambahkan',
+        onLihat: () => nav.push(
+          MaterialPageRoute(builder: (_) => DetailSupplierPage(supplierId: id)),
+        ),
+      );
+    } on ServiceException catch (e) {
+      _pesan(e.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Klik "Tambah Bahan" -> popup Pilih Bahan (mode supplier).
   Future<void> _tambahBahan() async {
+    final semua = _ingredients;
+    if (semua == null) {
+      _pesan('Memuat daftar bahan, coba lagi sebentar.');
+      return;
+    }
+    if (semua.isEmpty) {
+      _pesan('Belum ada bahan. Tambahkan bahan dulu di tab Bahan.');
+      return;
+    }
+
     final picked = await showPilihBahanSheet(
       context,
-      options: daftarBahanContoh, // TODO: ganti dengan data dari API
-      usedNames: _bahan.map((b) => b.nama.toLowerCase()).toSet(),
-      onTambahBaru: _tambahBahanManual,
+      options: semua.map(BahanOption.fromIngredient).toList(),
+      usedIds: _bahan.map((b) => b.option.id).toSet(),
+      onTambahBaru: () =>
+          _pesan('Tambahkan bahan baru lewat tab Bahan, lalu kembali ke sini.'),
       mode: PilihBahanMode.supplier,
       usedLabel: 'Sudah ditambahkan',
     );
     if (!mounted || picked == null) return;
 
     setState(() {
-      _bahan.add(BahanBaru(
-        nama: picked.option.name,
-        harga: picked.price, // harga dari supplier ini
-        satuan: picked.option.unit,
-        utama: picked.isMain,
-      ));
+      _bahan.add(_BahanDipilih(picked.option, picked.price, picked.isMain));
     });
-  }
-
-  /// Klik "Bahan tidak ada? Tambah bahan baru" di popup -> form manual.
-  Future<void> _tambahBahanManual() async {
-    final baru = await showModalBottomSheet<BahanBaru>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _TambahBahanSheet(),
-    );
-    if (!mounted || baru == null) return;
-    setState(() => _bahan.add(baru));
   }
 
   // ===== Komponen =====
@@ -275,19 +257,19 @@ class _TambahSupplier2PageState extends State<TambahSupplier2Page> {
   }
 
   OutlineInputBorder _border({double width = 1}) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: AppColors.brown, width: width),
-      );
+    borderRadius: BorderRadius.circular(10),
+    borderSide: BorderSide(color: AppColors.brown, width: width),
+  );
 
   // ===== Indikator langkah =====
   Widget _buildProgress() {
     Widget bar() => Container(
-          height: 5,
-          decoration: BoxDecoration(
-            color: AppColors.orangeAccent,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        );
+      height: 5,
+      decoration: BoxDecoration(
+        color: AppColors.orangeAccent,
+        borderRadius: BorderRadius.circular(3),
+      ),
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(25, 16, 25, 0),
@@ -342,11 +324,11 @@ class _TambahSupplier2PageState extends State<TambahSupplier2Page> {
             filled: true,
             fillColor: AppColors.background,
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             enabledBorder: _border(),
             focusedBorder: _border(width: 1.6),
           ),
-          items: _opsiTermin
+          items: kPaymentTerms
               .map((t) => DropdownMenuItem(value: t, child: Text(t)))
               .toList(),
           onChanged: (v) => setState(() => _termin = v),
@@ -374,7 +356,7 @@ class _TambahSupplier2PageState extends State<TambahSupplier2Page> {
     );
   }
 
-  Widget _barisBahan(int index, BahanBaru b) {
+  Widget _barisBahan(int index, _BahanDipilih b) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: SizedBox(
@@ -392,18 +374,39 @@ class _TambahSupplier2PageState extends State<TambahSupplier2Page> {
                   borderRadius: BorderRadius.circular(7),
                   child: Row(
                     children: [
-                      // nama bahan
+                      // nama bahan (+ tanda "Utama")
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 15),
-                          child: Text(
-                            b.nama,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              color: AppColors.textDark,
-                            ),
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  b.option.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    color: AppColors.textDark,
+                                  ),
+                                ),
+                              ),
+                              if (b.isMain) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.chipBg,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                  child: const Text('Utama',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: AppColors.warmSubtitle)),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ),
@@ -419,7 +422,7 @@ class _TambahSupplier2PageState extends State<TambahSupplier2Page> {
                           ),
                         ),
                         child: Text(
-                          '${_rupiah(b.harga)}/${b.satuan}',
+                          '${formatRupiah(b.price)}/${b.option.displayUnit}',
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -495,7 +498,7 @@ class _TambahSupplier2PageState extends State<TambahSupplier2Page> {
         backgroundColor: AppColors.background,
         body: Column(
           children: [
-            _Header(onBack: () => Navigator.pop(context)),
+            _Header(onBack: _saving ? () {} : () => Navigator.pop(context)),
             _buildProgress(),
             Expanded(
               child: SingleChildScrollView(
@@ -518,7 +521,7 @@ class _TambahSupplier2PageState extends State<TambahSupplier2Page> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: _valid ? _simpan : null,
+                    onPressed: (_valid && !_saving) ? _simpan : null,
                     style: ElevatedButton.styleFrom(
                       elevation: 0,
                       backgroundColor: AppColors.orangeAccent,
@@ -528,7 +531,16 @@ class _TambahSupplier2PageState extends State<TambahSupplier2Page> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8)),
                     ),
-                    child: const Text('Tambah Supplier',
+                    child: _saving
+                        ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                        : const Text('Tambah Supplier',
                         style: TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w700)),
                   ),
@@ -538,202 +550,6 @@ class _TambahSupplier2PageState extends State<TambahSupplier2Page> {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ===== Bottom sheet: Tambah Bahan (form manual) =====
-class _TambahBahanSheet extends StatefulWidget {
-  const _TambahBahanSheet();
-
-  @override
-  State<_TambahBahanSheet> createState() => _TambahBahanSheetState();
-}
-
-class _TambahBahanSheetState extends State<_TambahBahanSheet> {
-  final _nama = TextEditingController();
-  final _harga = TextEditingController();
-  final _satuan = TextEditingController(text: 'kg');
-
-  @override
-  void dispose() {
-    _nama.dispose();
-    _harga.dispose();
-    _satuan.dispose();
-    super.dispose();
-  }
-
-  int get _hargaInt =>
-      int.tryParse(_harga.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-
-  bool get _valid =>
-      _nama.text.trim().isNotEmpty &&
-      _satuan.text.trim().isNotEmpty &&
-      _hargaInt > 0;
-
-  void _simpan() {
-    if (!_valid) return;
-    Navigator.pop(
-      context,
-      BahanBaru(
-        nama: _nama.text.trim(),
-        harga: _hargaInt,
-        satuan: _satuan.text.trim(),
-      ),
-    );
-  }
-
-  OutlineInputBorder _border({double width = 1}) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: AppColors.brown, width: width),
-      );
-
-  Widget _field(String label, TextEditingController c, String hint,
-      {bool angka = false, List<TextInputFormatter>? formatters}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textDark)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: c,
-            onChanged: (_) => setState(() {}),
-            keyboardType: angka ? TextInputType.number : TextInputType.text,
-            inputFormatters: formatters,
-            style: const TextStyle(fontSize: 14.5, color: AppColors.textDark),
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle:
-                  const TextStyle(fontSize: 14.5, color: AppColors.mutedText),
-              filled: true,
-              fillColor: AppColors.background,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-              enabledBorder: _border(),
-              focusedBorder: _border(width: 1.6),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Theme(
-      data: theme.copyWith(
-        textTheme: theme.textTheme.apply(fontFamily: kFont),
-      ),
-      child: Padding(
-        padding:
-            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: SafeArea(
-            top: false,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 48,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: AppColors.dragHandle,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text('Tambah Bahan',
-                            style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textDark)),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: AppColors.peach,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.close,
-                              size: 20, color: AppColors.brownDark),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  _field('Nama Bahan', _nama, 'Contoh: Biji Kopi Arabika'),
-                  _field('Harga per Satuan (Rp)', _harga, '22.000',
-                      angka: true, formatters: [_RibuanFormatter()]),
-                  _field('Satuan', _satuan, 'kg, liter, pcs'),
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: _valid ? _simpan : null,
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0,
-                        backgroundColor: AppColors.orangeAccent,
-                        foregroundColor: AppColors.white,
-                        disabledBackgroundColor: AppColors.buttonBg,
-                        disabledForegroundColor: AppColors.buttonText,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: const Text('Tambah Bahan',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RibuanFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    var d = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (d.length > 9) d = d.substring(0, 9);
-    if (d.isEmpty) return const TextEditingValue(text: '');
-    final buf = StringBuffer();
-    for (var i = 0; i < d.length; i++) {
-      if (i > 0 && (d.length - i) % 3 == 0) buf.write('.');
-      buf.write(d[i]);
-    }
-    final text = buf.toString();
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }
